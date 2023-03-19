@@ -1,0 +1,338 @@
+function TRSGrandExchange.Open(): Boolean;
+var
+  ATPA: T2DPointArray;
+  TPA: TPointArray;
+  P: TPoint;
+begin
+  if self.IsOpen() then
+    Exit(True);
+
+  ATPA := Self.FindNPC(Self.FINDER_CLERK);
+
+  //debug(ATPA);
+  if Length(ATPA) > 2 then
+    SetLength(ATPA, 2);
+
+  for TPA in ATPA do
+  begin
+    P := TPA.Bounds.Middle().Random(0,5);
+    Mouse.Move(P);
+
+    if ('Clerk' in MainScreen.GetUpText()) then
+      Result := ChooseOption.Select('Exchange Grand');
+
+    if Result then
+    begin
+      if Minimap.HasFlag(Random(200, 400)) then
+        Minimap.WaitFlag();
+
+      Result := waitUntil(Self.IsOpen(), 250, 2500);
+    end;
+
+    if result then exit();
+  end;
+end;
+
+// Count how many slots have active offers
+function TRSGrandExchange.countActiveSlots() : Int32;
+begin
+end;
+
+// Count how many slots are empty
+function TRSGrandExchange.countFreeSlots() : Int32;
+begin
+end;
+
+// Get the next empty slot
+function TRSGrandExchange.nextEmptySlot() : Int32;
+var
+  i : Integer;
+begin
+  for i := 0 to 7 do
+    if self.GetOfferStatus(i).OfferType = ERSGEOfferType.EMPTY then
+      exit(i);
+
+  // Fail to -1
+  exit(-1);
+end;
+
+// Read the available cash stack
+function TRSGrandExchange.readCash() : Int32;
+var
+  coinSlot : Int32;
+begin
+  Inventory.FindItem('Coins', coinSlot);
+  result := SRL.GetItemAmount(Inventory.GetSlotBox(coinSlot));
+end;
+
+function TRSGrandExchange.GetProgress(slotNumber : Int32) : Int32; overload;
+begin
+  result := self.GetProgress(self.GetOfferSlots()[slotNumber], 105);
+end;
+
+function TRSGrandExchange._EnterQuantity(quantity : Int32) : Boolean;
+var
+  button : ERSGESetupOfferButton;
+  currentQuantity : Int32;
+begin
+  currentQuantity := self.GetItemQuantity();
+  //writeln('Current Quantity: ', currentQuantity);
+  if currentQuantity = quantity then exit(True);
+
+  case quantity of
+    1: button := ERSGESetupOfferButton.QUANTITY_1;
+    10: button := ERSGESetupOfferButton.QUANTITY_1;
+    100: button := ERSGESetupOfferButton.QUANTITY_1;
+    1000, -1: button := ERSGESetupOfferButton.QUANTITY_ALL;
+    else button := ERSGESetupOfferButton.QUANTITY_ENTER;
+  end;
+
+  if self.GetSetupOfferButton(button).Click() then
+    if button = ERSGESetupOfferButton.QUANTITY_ENTER then
+      KeyBoard.Send(toStr(quantity), VK_ENTER);
+
+  result := waitUntil((self.GetItemQuantity() = quantity), 200, 2000);
+end;
+
+procedure TRSGrandExchange._EnterPrice(price : String);
+
+  // Allows the user to specify "+10" and the PRICE_INCREASE button will be pressed twice
+  function calculateClicks(price : String; out button : ERSGESetupOfferButton) : Int32;
+  var
+    priceChange : Int32;
+  begin
+    if not ((price[1] = '+') or (price[1] = '-')) then
+    begin
+      button := ERSGESetupOfferButton.PRICE_ENTER;
+      exit(1);
+    end;
+
+    // Strip the + or - off the number
+    priceChange := strtoInt(copy(price, 2, length(price)));
+    if priceChange mod 5 <> 0 then
+    begin
+      writeln('WARNING: You cannot pass a price change that is not a multiple of 5');
+      exit(0);
+    end;
+
+    if price[1] = '+' then button := ERSGESetupOfferButton.PRICE_INCREASE
+    else button := ERSGESetupOfferButton.PRICE_DECREASE;
+
+    exit(round(priceChange/5));
+  end;
+
+var
+  button : ERSGESetupOfferButton;
+  buttonClicks, i: Int32;
+begin
+  case lowercase(price) of
+    'mid', 'market', '-1': button := ERSGESetupOfferButton.PRICE_GUIDE;
+    else buttonClicks := calculateClicks(price, button);
+  end;
+
+  // For now I can't think of any action required for guide price because it's automatically filled
+  if button = ERSGESetupOfferButton.PRICE_GUIDE then Exit();
+
+  for i := 1 to buttonClicks do
+  begin
+    if self.GetSetupOfferButton(button).Click() then
+      if button = ERSGESetupOfferButton.PRICE_ENTER then
+        KeyBoard.Send(price, VK_ENTER); // This probably needs a sensible failsafe to wait for the input to open
+  end;
+end;
+
+function TRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1) : Boolean;
+begin
+  if not self.IsOpen() then Exit(False);
+
+  if slotNumber = -1 then
+    slotNumber := self.NextEmptySlot();
+
+  if slotNumber = -1 then
+  begin
+    writeln('TRSGrandExchange.createBuyOffer: No empty slots');
+    exit(False);
+  end;
+
+  if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Click() then
+  begin
+    writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
+    exit(False);
+  end;
+
+  WaitUntil(Self.IsSearchOpen(), 500, 2500);
+
+  wait(random(400,800));
+
+  if not Self.Search(itemName, True) then
+  begin
+    writeln('TRSGrandExchange.createBuyOffer: Searching for ' + itemName + ' failed');
+    exit(False);
+  end;
+
+  waitUntil((self.GetItemQuantity > 0), 250, 2000);
+
+  if Self._EnterQuantity(quantity) then
+  begin
+    Self._EnterPrice(price);
+
+    wait(random(400,800));
+
+    result := Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click();
+  end else
+  begin
+    writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
+    exit(False);
+  end;
+end;
+
+// Enter -1 for ALL
+function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean;
+begin
+  if not self.IsOpen() then Exit(False);
+
+  if slotNumber > -1 then
+  begin
+    if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Click() then
+    begin
+      writeln('TRSGrandExchange.createSellOffer: Failed to click sell button');
+      exit(False);
+    end;
+
+    waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000);
+  end;
+
+  if not Inventory.ClickItem(itemName) then
+  begin
+    writeln('TRSGrandExchange.createSellOffer: Failed to find and click ', itemName);
+    exit(False);
+  end;
+
+  waitUntil((self.GetItemQuantity > 0), 250, 2000);
+
+  if Self._EnterQuantity(quantity) then
+    Self._EnterPrice(price);
+
+  wait(random(400,800));
+
+  result := Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click();
+end;
+
+function TRSGrandExchange.CollectOffer(slotNumber : Int32 = -1) : Boolean;
+var
+  cBoxes : TBoxArray;
+  collectionBox : tBox;
+begin
+  if (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) or (slotNumber > -1) then
+  begin
+    Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
+    waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000);
+
+  // Interface buttons can't locate the collection boxes easily within this interface
+  // TBD if grids are the best option
+    cBoxes := grid(2, 1, 36, 33, point(15,0), point(self.X2 - 105, self.Y2 - 52));
+
+    for collectionBox in cBoxes do
+      if SRL.CountColor(CTS1(65536, 0), CollectionBox) > 0 then
+      begin
+        Mouse.Click(collectionBox, MOUSE_LEFT);
+        // May need a failsafe to confirm it's collected
+      end;
+  end else
+    exit(Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click());
+
+  result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+end;
+
+function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
+
+  // Regular TRSButton does not allow CTS2 or circular buttons
+  // This is customized based on FindButtons but for this specific circle
+  function findAbortButton() : tBox;
+  var
+    TPA : tPointArray;
+    ATPA : T2DPointArray;
+    abortColor : TCTS2Color;
+    B : tBox;
+    W, H : Int32;
+  begin
+    abortColor := CTS2(917519, 3, 6.48, 2.52);
+    SRL.FindColors(TPA, AbortColor, grandExchange.Bounds());
+
+    if length(TPA) = 0 then Exit();
+
+    ATPA := TPA.Cluster(1);
+
+    //debug(ATPA);
+    for TPA in ATPA do
+    begin
+      if Length(TPA) > 75 then
+        Continue;
+
+      B := TPA.Bounds();
+      B.GetDimensions(W, H);
+      //Writeln(W, ', ', H);
+      //Writeln(length(TPA));
+
+      if (W = 20) and (H = 20) then
+        exit(B);
+    end;
+  end;
+
+begin
+  if (self.GetCurrentInterface() <> ERSGEInterface.OFFER_STATUS) then
+  begin
+    Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
+    waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000);
+
+  // Interface buttons can't locate the collection boxes easily within this interface
+  // TBD if grids are the best option
+  end;
+
+  if countColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0 then exit(True);
+
+  Mouse.Click(FindAbortButton().Middle().Random(1,5), MOUSE_LEFT);
+  Result := waitUntil(countColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0, 200, 2000);
+end;
+
+function TRSGrandExchange.ReturnToMain() : Boolean;
+
+  // Finder for the back arrow
+  function findArrow() : tBox;
+  var
+    TPA : tPointArray;
+    ATPA : T2DPointArray;
+    arrowColor : TCTS2Color;
+    B : tBox;
+    W, H : Int32;
+  begin
+    arrowColor := CTS2(10791348, 18, 0.11, 0.22);
+    SRL.FindColors(TPA, arrowColor, grandExchange.Bounds());
+
+    if length(TPA) = 0 then Exit();
+
+    ATPA := TPA.Cluster(1);
+
+    debug(ATPA);
+    for TPA in ATPA do
+    begin
+      //if Length(TPA) > 75 then
+      //  Continue;
+
+      B := TPA.Bounds();
+      B.GetDimensions(W, H);
+      //Writeln(W, ', ', H);
+      //Writeln(length(TPA));
+
+      if inRange(W, 20, 30) and inRange(H, 10, 20) then
+        exit(B);
+    end;
+  end;
+
+begin
+  if self.GetCurrentInterface() = ERSGEInterface.OVERVIEW then exit(True);
+
+  Mouse.Click(findArrow().Middle().Random(0,3), MOUSE_LEFT);
+  Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+end;
+

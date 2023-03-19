@@ -1,0 +1,68 @@
+function getSystemUnix() : Int64;
+begin
+  result := dateTimetoUnix(NowUTC(), True);
+end;
+
+function dateTimeStamp() : String;
+  var
+    Hour, Mins, Sec, MSec: Word;
+    Day, Month, Year : Uint16;
+    tDate, tTime : String;
+  begin
+    DecodeTime(Now(), Hour, Mins, Sec, MSec);
+    DecodeDate(Date(), Year, Month, Day);
+    tDate := toStr(Year) + '-' + Padz(toStr(Month), 2) + '-' + Padz(toStr(Day), 2);
+    tTime := (Padz(IntToStr(Hour), 2) + '.' + Padz(IntToStr(Mins), 2) + '.' + Padz(IntToStr(Sec), 2));
+    result := tDate + ' ' + tTime;
+  end;
+
+procedure tScript.print(txt: String; level: eDebugType = eDebugType.DEV);
+begin
+  if self.debugLevel = eDebugType.NONE then exit();
+
+  if level = eDebugType.FATAL then
+    writeln(dateTimeStamp(), ' [FATAL]: ', txt);
+
+  if (self.debugLevel = eDebugType.DEV) or ((self.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
+    writeln(dateTimeStamp(), ' [BOT]: ', txt);
+end;
+
+procedure tScript.takeScreenshot(fileName: string; twoFour : Boolean); overload;
+begin
+  CreateDirectory('Screenshots/Flipper');
+  saveScreenshot('Screenshots/Flipper/' + dateTimeStamp() + ' ' + fileName);
+  self.print('Saving screenshot: ' + fileName, eDebugType.DEV);
+end;
+
+function tScript.smartStringMatch(source, target : String; diff : Integer) : Boolean;
+
+  function trimBad(text, omit : String) : String;
+  var
+    bad : String = "'.,-<>?+=()/\*@![]#_:"+#10+#13+#32;
+    c : String;
+  begin
+    result := text;
+    for c in bad do
+    begin
+      //writeln(c);
+      if pos(c, omit) > 0 then continue;
+      result := replace(result, c, '', [rfReplaceAll]);
+    end;
+  end;
+
+var
+  strLen : Integer;
+  matchDiff, allowable : Extended;
+  trimSource, trimTar : String;
+begin
+  source := trimBad(source, target);
+  trimSource := trim(replace(source, ' ', '', [rfReplaceAll]));
+  trimTar := trim(replace(target, ' ', '', [rfReplaceAll]));
+
+  strLen := length(trimTar);
+  matchDiff := stringMatch(trimSource, trimTar);
+  allowable := 1.0 - (diff / strLen);
+
+  result := matchDiff >= allowable;
+end;
+

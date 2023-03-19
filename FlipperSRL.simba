@@ -1,160 +1,31 @@
 program flipper;
 {$DEFINE SRL_USE_REMOTEINPUT}
 {$I SRL-T/OSR.simba}
+{$I FlipperSRL/Include/flipper.simba}
 
-(*
-Types and Variables
--------------------
-*)
+const
+  FANCY_RATIO = 50; // Chance of fancy pull instead of basic
+  ITEM_Q_LENGTH = 4;
 
-(*
-type tGEItem
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tGEItem = record
-     name : String; // The item name as it appears in the GrandExchange
-     itemID : Int32; // The itemID as it appears in the GE Database
-     limit : Int32; // Trade Limit per 4 hours
-     market : Int32; // Current market price
-     buy : Int32; // Price we're putting for a buy offer
-     sell : Int32; // Price we're putting for a sell offer
-     packSlot : Int32; // The pack slot that we've stored the item in
-     DTMString : String // The index for the DTM of the slot item
-   end;
-This is used for tracking item information through offers
-*)
+  DEFAULT_WAIT := 4 * 60; // 4 minutes
+  WAIT_INCREMENT := 2 * 60; // 2 min
+  MAX_WAIT := 10 * 60; // 10 mins
+  EXPERIMENTAL_SLOTS := [6, 7];
+  DESIRED_MARGIN := 2.0;
+  SAFE_MARKET_RATIO := 2.0;
+  MAX_BUY_TIME := 1 * 60 * 60; // 1 hr
 
+  //db_user := "";
+  //db_password := "";
+  //BASE_URL := "";
+  //DISCORD_HOOK := "";
 
-type tGEItem = record
-  name : String;
-  itemID, limit, market, buy, sell, packSlot : Int32;
-  dtmString : String;
-  end;
+  username := '';
+  password := '';
 
-  tGEItemArray = Array of tGEItem;
-
-(*
-type tGEItemFancy
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tGEItemFancy = record(tGEItem)
-     revenue : Int32; // Total revenue for all trades of this item
-     spend : Int32; // Total spent for all trades of this item
-     quantity : Int32; // Total amount traded for all trades of this item
-     time : Int32; // Total time for all trades of this item
-     profitPer : Int32; // Profit per hour as calculated
-   end;
-This is an extended item array for sorting by profit/hr
-*)
-
-type tGEItemFancy = record(tGEItem)
-  revenue, spend, quantity, time, profitPer : Double;
-end;
-
-  tGEItemFancyArray = Array of tGEItemFancy;
-
-(*
-type tTradeRecord
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tTradeRecord = record
-     tradeFinished : Int32; // The time the trade finished
-     amount : Int32; // The amount of items that we traded at that time
-   end;
-Used to track the partial trades in a current offer. In the case of a completed
-trade, amount is used to track the itemID instead of partial amount.
-*)
-
-type tTradeRecord = record
-  tradeFinished, amount : int64; // Amount is used for itemID in the account record to track recently traded items
-end;
-
-  tTradeRecordArray = Array of tTradeRecord;
-
-(*
-type tGESlot
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tGESlot = record
-     lastProgress : Int32; // Progress the last time we checked the offer
-     curProgress : Int32; // The progress when reading from the screen
-     status : String; // The offer status. Empty/Unused/Buying/Selling/Complete/Abandoned
-   end;
-Keeps track of the information for each Slot. Each slot has an offer and each offer
-has an item.
-*)
-
-type tGESlot = record
-  lastProgress, curProgress : Int32;
-  status : String;
-end;
-
-  tGESlotArray = Array of tGESlot;
-
-(*
-type tGEOffer
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tGEOffer = record
-     globalTrade : Int32; // Tracks the trade value to match with the database
-     purchased : Int32; // The amount we have purchased on this offer
-     toTrade : Int32; // The total amount that we plan on purchasing this offer
-     spent : Int32; // The amount of gp spent on the offer
-     revenue : Int32; // the revenue made from the offer
-     startTime : Int32; // SystemTime that the offer was started
-     lastUpdate : Int32; // SystemTime that the progress was updated
-     waitTime : Int32; // How long to wait before making a price check on the offer
-     slotNumber : Int32; // The number for internal GE functions (index 0 is slot 1)
-     buyOverride : Boolean; // Used for overriding script logic if we need to stop buying a partial trade
-     abandoning : Boolean; // Tracks if the item can't be reasonably sold and needs to be abandoned for 1gp
-     collected : Boolean; // Tracks if the item has been collected out of the slot
-     histUpdated : Boolean; // Tracks if the history has been updated for the offer
-     status : String; // The offer status. "buying" or "selling" only
-     previousTrades : tTradeRecordArray; // Tracks partial trades for ensuring we don't go over the trade limit
-     item : tGEItem; // The item we are trading
-   end;
-Tracks all the information for a given offer.
-*)
-
-type tGEOffer = record
-  globalTrade, purchased, toTrade, spent, revenue, waitTime, slotNumber : Int32;
-  startTime, lastUpdate : Int64;
-  buyOverride, abandoning, collected, histUpdated : Boolean;
-  status : String;
-  previousTrades : tTradeRecordArray;
-  item : tGEItem;
-  slot : tGESlot;
-end;
-
-  tGEOfferArray = array of tGEOffer;
-
-(*
-type tGEHistory
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tGEHistory = record()
-     offerType, itemName : String // Identifying information for the offer
-     totalValue, eachValue : Integer; // Price information for the history.
-     isUsed : Boolean; // If the history slot has been used for an offer update yet
-   end;
-Tracks the information for trade history
-*)
-
-type tGEHistory = record
-  offerType, itemName : String;
-  totalValue, eachValue, quantity : Integer;
-  isUsed : Boolean;
-end;
-
-  tGEHistoryArray = Array of tGEHistory;
-
-type tScript = record
-  offers : tGEOfferArray;
-  history : tGEHistoryArray;
-  itemQ : TGEItemArray;
-  recentItems : tTradeRecordArray;
-  geClerk : tPoint;
-end;
+// Running Variable
+var
+  bot : tScript;
 
 begin
 end.
