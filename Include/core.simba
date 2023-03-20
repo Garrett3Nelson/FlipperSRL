@@ -1,0 +1,158 @@
+procedure tScript.initPlayer();
+begin
+  if not grandExchange.Open() then
+  begin
+    self.print('Did not open GE successfully', eDebugType.FATAL);
+    terminateScript();
+  end;
+
+  // First time through read the cash. This does absolutely nothing right now
+  if self.playerCash = 0 then
+    self.playerCash := grandExchange.readCash();
+
+  // Check if there are slots to load
+  if (grandExchange.countActiveSlots() <> grandExchange.countFreeSlots()) then
+  begin
+    // What do we want to do if there are active slots?
+  end;
+
+  self.print('initPlayer(): init Completed', eDebugType.DEV);
+end;
+
+function tScript.doPricecheck(itemName : String) : Boolean;
+var
+  skipSell : Boolean;
+  history : TRSGEHistory;
+  newOffer : tGEOffer;
+begin
+  newOffer.reset(0);
+  self.offers.append(newOffer);
+
+  self.offers[high(self.offers)].item.name := itemName;
+  if GrandExchange.GetCurrentInterface() <> ERSGEInterface.OVERVIEW then grandExchange.ReturnToMain();
+
+  self.offers[high(self.offers)].slotNumber := grandExchange.nextEmptySlot();
+
+  if not grandExchange.CreateBuyOffer(itemName, '+20', 1, self.offers[high(self.offers)].slotNumber) then
+  begin
+    //('getBuyPrice(): Failed doing buy offer', eDebugType.DEV);
+    grandExchange.ReturnToMain();
+    exit(False);
+  end;
+
+  //print('getBuyPrice(): Bought item, waiting for it to complete');
+
+  if not waitUntil(grandExchange.getProgress(self.offers[high(self.offers)].slotnumber) = 100, 250, 2000) then
+  begin
+    writeln('Offer did not purchase');
+    grandExchange.AbortOffer(self.offers[high(self.offers)].slotnumber);
+    skipSell := True;
+  end;
+
+  if not grandExchange.CollectOffer() then
+    writeln('Warning: Buy offer did not collect');
+
+  if not waitUntil(grandExchange.GetOfferStatus(self.offers[high(self.offers)].slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000) then
+    skipSell := True;
+
+  if not skipSell then
+  begin
+    if not grandExchange.CreateSellOffer(itemName, '-20', 1, self.offers[high(self.offers)].slotnumber) then
+    begin
+      grandExchange.ReturnToMain();
+      Exit(False);
+    end;
+
+    if not waitUntil(grandExchange.getProgress(self.offers[high(self.offers)].slotnumber) = 100, 250, 2000) then
+    begin
+      writeln('Offer did not sell');
+      grandExchange.AbortOffer(self.offers[high(self.offers)].slotnumber);
+    end else
+    begin
+      if not grandExchange.CollectOffer() then
+        writeln('Warning: Sell offer did not collect');
+
+      grandExchange.changeTab();
+      wait(random(400,800));
+
+      history := grandExchange.GetHistory();
+      grandExchange.changeTab(False);
+      wait(random(400,800));
+
+      self.offers[high(self.offers)].item.buy := history[1].PricePerItem;
+      self.offers[high(self.offers)].item.sell := history[0].PricePerItem;
+    end;
+  end;
+end;
+
+procedure TScript.Free();
+begin
+  RSClient.Image.Clear();
+  Self.Print('You did great out there');
+end;
+
+
+(*
+tScript.updateTrades
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. pascal::
+   procedure tScript.updateTrades();
+Removes any items from the recentItem array that were traded more than 4 hours ago.
+*)
+
+procedure tScript.updateTrades();
+var
+  cutoff, lim, i : Integer;
+begin
+  cutoff := getSystemUnix() - (4*60*60*1000); // 4 hour cutoff for trades
+
+  lim := high(self.recentItems);
+
+  for i := lim downto 0 do
+    if self.recentItems[i].tradeFinished < cutoff then // if it's been longer than 4 hours
+      self.recentItems.deleteIndex(i);
+end;
+
+(*
+tScript.addTrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. pascal::
+   procedure tScript.addTrade(trade : tTradeRecord);
+Adds a given tradeRecord to the recentItem list.
+*)
+
+procedure tScript.addTrade(constref trade : tTradeRecord);
+begin
+  if trade.amount <= 0 then
+    self.print("ERROR: Cannot add trade of 0 amount")
+  else
+    self.recentItems.append(trade);
+
+  self.updateTrades(); // Update to remove any old trades
+end;
+
+(*
+tScript.encodeItems
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. pascal::
+   function tScript.encodeItems() : String;
+Encodes the trade data to be sent to the database to prevent checking out an item
+that was recently traded. Used in importItemFancy.
+*)
+
+function tScript.encodeItems() : String;
+var
+  i, lim : Integer;
+begin
+  // Remove any old trades before we send the list
+  self.updateTrades();
+
+  if length(self.recentItems) = 0 then
+    exit("1:"); // We send a placeholder text for this function.
+  // The database needs a placeholder item so we send 1 because there is no itemID 1 in the database.
+
+  lim := high(self.recentItems);
+  for i := 0 to lim do
+    result += toStr(self.recentItems[i].amount) + ":";
+    // For this function we are only sending the itemID separated by ":"
+end;

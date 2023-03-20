@@ -136,8 +136,12 @@ begin
   for i := 1 to buttonClicks do
   begin
     if self.GetSetupOfferButton(button).Click() then
+    begin
+      wait(random(200,400));
       if button = ERSGESetupOfferButton.PRICE_ENTER then
-        KeyBoard.Send(price, VK_ENTER); // This probably needs a sensible failsafe to wait for the input to open
+        KeyBoard.Send(price, VK_ENTER);
+        // This probably needs a sensible failsafe to wait for the input to open
+    end;
   end;
 end;
 
@@ -177,6 +181,12 @@ begin
     Self._EnterPrice(price);
 
     wait(random(400,800));
+
+    if self.GetItemTotalPrice() > self.readCash() then
+    begin
+      writeln('TRSGrandExchange.createBuyOffer: Cash is not sufficient to cover this offer');
+      exit(False);
+    end;
 
     result := Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click();
   end else
@@ -225,8 +235,11 @@ var
 begin
   if (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) or (slotNumber > -1) then
   begin
-    Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
-    waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000);
+    if not (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then
+    begin
+      Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
+      if not waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000) then exit(False);
+    end;
 
   // Interface buttons can't locate the collection boxes easily within this interface
   // TBD if grids are the best option
@@ -334,5 +347,16 @@ begin
 
   Mouse.Click(findArrow().Middle().Random(0,3), MOUSE_LEFT);
   Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+end;
+
+function TRSGrandExchange.changeTab(toHistory: Boolean = True) : Boolean;
+begin
+  if (toHistory and (self.getCurrentInterface() = ERSGEInterface.HISTORY)) or
+    ((not toHistory) and (self.getCurrentInterface() = ERSGEInterface.OVERVIEW)) then Exit(True);
+
+  self.GetOverviewButton(ERSGEOverviewButton.CHANGE_TAB).Click();
+
+  if toHistory then result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.HISTORY, 250, 2000)
+  else result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 250, 2000);
 end;
 
