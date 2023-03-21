@@ -18,19 +18,6 @@ begin
 end;
 
 (*
-t2DColorData.Append
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure t2DColorData.append(const trade : tTradeRecord);
-Appends a trade record to the end of the array
-*)
-
-//procedure t2DColorData.append(const color : tColorData);
-//begin
-//  insert(color, self, length(self));
-//end;
-
-(*
 tTradeRecordArray.Append
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. pascal::
@@ -133,7 +120,6 @@ begin
   result.itemID := self.itemID;
   result.limit := self.limit;
   result.market := self.market;
-  result.packSlot := self.packSlot;
   result.sell := self.sell;
 end;
 
@@ -246,7 +232,7 @@ end;
 
 function tGEItem.stringify() : String;
 begin
-  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(self.margin()) + ", Limit: " + toStr(self.limit) + ', PackSlot: ' + toStr(self.packSlot);
+  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(self.margin()) + ", Limit: " + toStr(self.limit);
 end;
 
 (*
@@ -639,7 +625,6 @@ begin
   self.limit := 0;
   self.buy := 0;
   self.sell := 0;
-  self.packSlot := 0;
 end;
 
 (*

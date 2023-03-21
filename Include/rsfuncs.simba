@@ -33,16 +33,6 @@ begin
   end;
 end;
 
-// Count how many slots have active offers
-function TRSGrandExchange.countActiveSlots() : Int32;
-begin
-end;
-
-// Count how many slots are empty
-function TRSGrandExchange.countFreeSlots() : Int32;
-begin
-end;
-
 // Get the next empty slot
 function TRSGrandExchange.nextEmptySlot() : Int32;
 var
@@ -60,9 +50,13 @@ end;
 function TRSGrandExchange.readCash() : Int32;
 var
   coinSlot : Int32;
+  coinBox : tBox;
 begin
   Inventory.FindItem('Coins', coinSlot);
-  result := SRL.GetItemAmount(Inventory.GetSlotBox(coinSlot));
+  coinBox := Inventory.GetSlotBox(coinSlot);
+  coinBox.X2 += 3;
+  //debug(coinBox);
+  result := SRL.GetItemAmount(coinBox);
 end;
 
 function TRSGrandExchange.GetProgress(slotNumber : Int32) : Int32; overload;

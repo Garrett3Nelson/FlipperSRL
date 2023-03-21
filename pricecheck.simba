@@ -55,6 +55,7 @@ begin
   if not (Options.GetZoomLevel = 50) then
     Options.SetZoomLevel(50);
   MM2MS.ZoomLevel := Options.GetZoomLevel();
+  Mainscreen.SetHighestPitch();
 
   //Self.SetupAntiban();
 

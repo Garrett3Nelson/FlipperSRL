@@ -14,7 +14,6 @@ type tGEItem
      market : Int32; // Current market price
      buy : Int32; // Price we're putting for a buy offer
      sell : Int32; // Price we're putting for a sell offer
-     packSlot : Int32; // The pack slot that we've stored the item in
    end;
 This is used for tracking item information through offers
 *)
@@ -22,7 +21,7 @@ This is used for tracking item information through offers
 
 type tGEItem = record
   name : String;
-  itemID, limit, market, buy, sell, packSlot : Int32;
+  itemID, limit, market, buy, sell : Int32;
   end;
 
   tGEItemArray = Array of tGEItem;
