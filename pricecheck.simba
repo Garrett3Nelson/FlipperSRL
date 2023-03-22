@@ -18,6 +18,8 @@ const
   p_password := '';
   p_world    := [302]; // any world or array of worlds
 
+  DEFAULT_WAIT := 30 * 1000; // Does nothing yet
+
 
 procedure TScript.Init();
 begin
@@ -61,24 +63,37 @@ begin
 
   //Self.TrueRunTime.Start();
   //Self.ShutdownTime := (MAXRUNTIME*60000)+Random(-(MAXRUNTIME*6000),(MAXRUNTIME*6000));
+  self.itemMap := pullMapping('Simba Client - Mapping Information');
+
   AddOnTerminate(@Self.Free);
 end;
 
 procedure tScript.runPC();
 var
-  itemName : String;
+  i : Int32;
 begin
   self.Init();
   self.InitPlayer();
 
+  self.parseMap();
+  self.offers.pullMarkets();
+
   //while True do
-    for itemName in ITEMS_TO_TRADE do
+    for i := 0 to high(self.offers) do
     begin
-      self.doPriceCheck(itemName);
-      self.offers[high(self.offers)].item.debug();
+      if self.offers[i].item.name = '' then continue;
+
+      self.offers[i].doPriceCheck();
+      self.offers[i].item.debug();
     end;
 end;
 
+var i : Int32;
+
 begin
+  bot.setup(DEFAULT_WAIT);
+  for i := 0 to min(7, high(ITEMS_TO_TRADE)) do
+    bot.offers[i].item.name := ITEMS_TO_TRADE[i];
+
   bot.runPC();
 end.

@@ -175,6 +175,7 @@ type
     history : tGEHistoryArray;
     itemQ : TGEItemArray;
     recentItems : tTradeRecordArray;
+    itemMap : tJSONArray;
 
     // SRL Related Variables
     RSW : TRSWalker;

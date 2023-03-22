@@ -29,72 +29,69 @@ procedure TScript.Free();
 begin
   RSClient.Image.Clear();
   Self.Print('You did great out there');
+  self.itemMap.Free();
 end;
 
-function tScript.doBuyCheck(itemName : String; offerIndex: Int32): Boolean;
+function tGEOffer.doBuyCheck(): Boolean;
 begin
-  if self.offers[offerIndex].slotNumber = -1 then self.offers[offerIndex].slotNumber := grandExchange.nextEmptySlot();
+  if self.slotNumber = -1 then self.slotNumber := grandExchange.nextEmptySlot();
 
-  if not grandExchange.CreateBuyOffer(itemName, '+20', 1, self.offers[offerIndex].slotNumber) then
+  if not grandExchange.CreateBuyOffer(self.item.name, '+20', 1, self.slotNumber) then
   begin
-    self.print('getBuyPrice(): Failed doing buy offer');
+    writeln('getBuyPrice(): Failed doing buy offer');
     grandExchange.ReturnToMain();
     exit(False);
   end;
 
   //self.print('getBuyPrice(): Bought item, waiting for it to complete');
 
-  if not waitUntil(grandExchange.getProgress(self.offers[offerIndex].slotnumber) = 100, 250, 2000) then
+  if not waitUntil(grandExchange.getProgress(self.slotnumber) = 100, 250, 2000) then
   begin
     writeln('Offer did not purchase');
-    grandExchange.AbortOffer(self.offers[offerIndex].slotnumber);
+    grandExchange.AbortOffer(self.slotnumber);
   end;
 
   if not grandExchange.CollectOffer() then
     writeln('Warning: Buy offer did not collect');
 
-  result := waitUntil(grandExchange.GetOfferStatus(self.offers[offerIndex].slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
+  result := waitUntil(grandExchange.GetOfferStatus(self.slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
 end;
 
-function tScript.doSellCheck(itemName : String; offerIndex: Int32): Boolean;
+function tGEOffer.doSellCheck(): Boolean;
 begin
   // For tracking the slot that will be used
   // clicking the item in the inventory will create an offer in this slot
-  if self.offers[offerIndex].slotNumber = -1 then
-    self.offers[offerIndex].slotNumber := grandExchange.nextEmptySlot();
+  if self.slotNumber = -1 then
+    self.slotNumber := grandExchange.nextEmptySlot();
 
-  if not grandExchange.CreateSellOffer(itemName, '-20', 1) then
+  if not grandExchange.CreateSellOffer(self.item.name, '-20', 1) then
   begin
     grandExchange.ReturnToMain();
     Exit(False);
   end;
 
-  if not waitUntil(grandExchange.getProgress(self.offers[offerIndex].slotnumber) = 100, 250, 2000) then
+  if not waitUntil(grandExchange.getProgress(self.slotnumber) = 100, 250, 2000) then
   begin
     writeln('Offer did not sell');
-    grandExchange.AbortOffer(self.offers[offerIndex].slotnumber);
+    grandExchange.AbortOffer(self.slotnumber);
   end else
     if not grandExchange.CollectOffer() then
       writeln('Warning: Sell offer did not collect');
 
-  result := waitUntil(grandExchange.GetOfferStatus(self.offers[offerIndex].slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
+  result := waitUntil(grandExchange.GetOfferStatus(self.slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
 end;
 
-function tScript.doPricecheck(itemName : String) : Boolean;
+function TGEOffer.doPricecheck() : Boolean;
 var
   history : TRSGEHistory;
-  newOffer : tGEOffer;
 begin
-  newOffer.reset(0);
-  self.offers.append(newOffer);
 
-  self.offers[high(self.offers)].item.name := itemName;
   if GrandExchange.GetCurrentInterface() <> ERSGEInterface.OVERVIEW then grandExchange.ReturnToMain();
 
-  self.offers[high(self.offers)].slotNumber := grandExchange.nextEmptySlot();
+  self.slotNumber := grandExchange.nextEmptySlot();
 
-  if self.doBuyCheck(itemName, high(self.offers)) then
-    if self.doSellCheck(itemName, high(self.offers)) then
+  if self.doBuyCheck() then
+    if self.doSellCheck() then
     begin
       grandExchange.changeTab();
       wait(random(400,800));
@@ -103,8 +100,10 @@ begin
       grandExchange.changeTab(False);
       wait(random(400,800));
 
-      self.offers[high(self.offers)].item.buy := history[1].PricePerItem;
-      self.offers[high(self.offers)].item.sell := history[0].PricePerItem;
+      self.item.buy := history[1].PricePerItem;
+      self.item.sell := history[0].PricePerItem;
+
+      result := True;
     end;
 end;
 

@@ -1,0 +1,83 @@
+function tScript.pullMapping(userAgent: String = 'Simba Client - Mapping Information'): tJSONArray;
+var
+  url, resString : String;
+  theClient : Int32;
+begin
+  url := 'https://prices.runescape.wiki/api/v1/osrs/mapping';
+
+  try
+    theClient := InitializeHTTPClient(False);
+    SetHTTPUserAgent(theClient, userAgent);
+
+    resString := GetHTTPPage(theClient, url);
+    result.Init(resString);
+  except
+    // Add debug of error
+    self.print("Failed to get item data, cannot load items", eDebugType.FATAL);
+  finally
+    FreeHTTPClient(theClient);
+  end;
+end;
+
+procedure tGEOfferArray.pullMarkets(userAgent: String = 'Simba Client - Market Information');
+var
+  i, theClient : Int32;
+  url, response : String;
+  resJSON : tJSONObject;
+begin
+  url := 'https://api.weirdgloop.org/exchange/history/osrs/latest?id=';
+  for i := 0 to high(self) do
+  begin
+    if self[i].item.itemID = 0 then continue;
+    url += toStr(self[i].item.itemID) + '|';
+  end;
+  url := url.StripR('|');
+
+  try
+    theClient := InitializeHTTPClient(False);
+    SetHTTPUserAgent(theClient, userAgent);
+
+    response := GetHTTPPage(theClient, url);
+
+    resJSON.Init(response);
+  except
+  finally
+    FreeHTTPClient(theClient);
+  end;
+
+  for i := 0 to high(self) do
+  begin
+    if self[i].item.itemID = 0 then continue;
+    self[i].item.market := resJSON.getJSONObject(toStr(self[i].item.itemID)).getInt('price');
+  end;
+end;
+
+function tScript.parseMap() : boolean;
+var
+  tempObject : tJSONObject;
+  i, j : Int32;
+begin
+  result := True;
+  for j := 0 to high(self.offers) do
+  begin
+    if self.offers[j].item.name = '' then continue;
+
+    try
+      for i := 0 to self.itemMap.length()-1 do
+      begin
+        tempObject := self.itemMap.getJSONObject(i);
+        if self.offers[j].item.name = tempObject.getString('name') then
+        begin
+          self.offers[j].item.itemID := tempObject.getInt('id');
+          if tempObject.has('limit') then
+            self.offers[j].item.limit := tempObject.getInt('limit');
+          break;
+        end;
+      end;
+    except
+      writeln('Failed to parse: ', self.offers[j].item.name);
+      result := False;
+    end;
+  end;
+end;
+

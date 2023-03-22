@@ -27,7 +27,7 @@ begin
     writeln(dateTimeStamp(), ' [BOT]: ', txt);
 end;
 
-procedure tScript.takeScreenshot(fileName: string; twoFour : Boolean); overload;
+procedure tScript.takeScreenshot(fileName: string);
 begin
   CreateDirectory('Screenshots/Flipper');
   saveScreenshot('Screenshots/Flipper/' + dateTimeStamp() + ' ' + fileName);

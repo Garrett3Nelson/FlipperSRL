@@ -4,4 +4,5 @@
 {$include_once datatypes.simba}
 //{$include_once database.simba}
 {$include_once rsfuncs.simba}
+{$include_once rswiki.simba}
 {$include_once core.simba}

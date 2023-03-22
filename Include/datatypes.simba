@@ -391,7 +391,7 @@ slot number, status, last progress.
 
 procedure tGESlot.debug();
 begin
-  //tScript.print("Slot Status: " + self.status + ". Current progress: " + toStr(self.curProgress) + ". Last progress: " + toStr(self.lastProgress));
+  writeln("Slot Status: " + self.status + ". Current progress: " + toStr(self.curProgress) + ". Last progress: " + toStr(self.lastProgress));
 end;
 
 function tGEOffer.stringify(collected : Boolean = True) : String;
@@ -412,7 +412,7 @@ tradeID, status, toTrade, and purchased.
 
 procedure tGEOffer.debug();
 begin
-  //tScript.print(self.stringify());
+  writeln(self.stringify());
   self.item.debug();
   self.slot.debug();
 end;
@@ -689,4 +689,14 @@ begin
     self[i].reset(defaultWait);
 end;
 
+procedure tScript.setup(defaultWait : Int32 = 0);
+begin
+  setLength(self.offers, 8);
+  self.offers.reset(defaultWait);
+
+  setLength(self.history, 0);
+  setLength(self.itemQ, 0);
+  setLength(self.recentItems, 0);
+  self.ItemMap.Free();
+end;
 
