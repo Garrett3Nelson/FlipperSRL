@@ -1,3 +1,29 @@
+// Count how many slots have active offers
+function tScript.countActiveSlots() : Int32;
+var
+  i : Int32;
+  slot : TRSGEOfferStatus;
+begin
+  for i := 0 to 7 do
+  begin
+    slot := grandExchange.GetOfferStatus(i);
+    if slot.OfferType <> ERSGEOfferType.EMPTY then Result += 1;
+  end;
+end;
+
+// Count how many slots are empty
+function tScript.countFreeSlots() : Int32;
+var
+  i : Int32;
+  slot : TRSGEOfferStatus;
+begin
+  for i := 0 to 7 do
+  begin
+    slot := grandExchange.GetOfferStatus(i);
+    if slot.OfferType = ERSGEOfferType.EMPTY then Result += 1;
+  end;
+end;
+
 procedure tScript.initPlayer();
 begin
   if not grandExchange.Open() then
@@ -20,6 +46,8 @@ begin
   if (self.countActiveSlots() <> self.countFreeSlots()) then
   begin
     // What do we want to do if there are active slots?
+    self.print('initPlayer(): WARNING: Slots are in use', eDebugType.FATAL);
+    terminateScript();
   end;
 
   self.print('initPlayer(): init Completed');
@@ -27,7 +55,11 @@ end;
 
 procedure TScript.Free();
 begin
-  RSClient.Image.Clear();
+  try
+    RSClient.Image.Clear();
+  except
+    Self.Print('Couldnt clear client');
+  end;
   Self.Print('You did great out there');
   self.itemMap.Free();
 end;
@@ -38,7 +70,7 @@ begin
 
   if not grandExchange.CreateBuyOffer(self.item.name, '+20', 1, self.slotNumber) then
   begin
-    writeln('getBuyPrice(): Failed doing buy offer');
+    writeln('doBuyCheck(): Failed doing buy offer');
     grandExchange.ReturnToMain();
     exit(False);
   end;
@@ -47,12 +79,12 @@ begin
 
   if not waitUntil(grandExchange.getProgress(self.slotnumber) = 100, 250, 2000) then
   begin
-    writeln('Offer did not purchase');
+    writeln('doBuyCheck(): Offer did not purchase');
     grandExchange.AbortOffer(self.slotnumber);
   end;
 
   if not grandExchange.CollectOffer() then
-    writeln('Warning: Buy offer did not collect');
+    writeln('WARNING: doBuyCheck(): Buy offer did not collect');
 
   result := waitUntil(grandExchange.GetOfferStatus(self.slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
 end;
@@ -72,11 +104,11 @@ begin
 
   if not waitUntil(grandExchange.getProgress(self.slotnumber) = 100, 250, 2000) then
   begin
-    writeln('Offer did not sell');
+    writeln('doSellCheck(): Offer did not sell');
     grandExchange.AbortOffer(self.slotnumber);
   end else
     if not grandExchange.CollectOffer() then
-      writeln('Warning: Sell offer did not collect');
+      writeln('WARNING: doSellCheck(): Sell offer did not collect');
 
   result := waitUntil(grandExchange.GetOfferStatus(self.slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
 end;
@@ -106,17 +138,6 @@ begin
       result := True;
     end;
 end;
-
-// Count how many slots have active offers
-function tScript.countActiveSlots() : Int32;
-begin
-end;
-
-// Count how many slots are empty
-function tScript.countFreeSlots() : Int32;
-begin
-end;
-
 
 (*
 tScript.updateTrades

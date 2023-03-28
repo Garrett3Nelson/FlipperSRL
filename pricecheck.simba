@@ -96,4 +96,5 @@ begin
     bot.offers[i].item.name := ITEMS_TO_TRADE[i];
 
   bot.runPC();
+  bot.offers.debug();
 end.

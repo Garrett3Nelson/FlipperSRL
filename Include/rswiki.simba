@@ -52,32 +52,76 @@ begin
   end;
 end;
 
-function tScript.parseMap() : boolean;
+procedure tGEItemArray.pullMarkets(userAgent: String = 'Simba Client - Market Information'); overload;
+var i : Int32;
+tempOffers : tGEOfferArray;
+begin
+  setLength(tempOffers, length(self));
+
+  for i := 0 to high(self) do
+    tempOffers[i].item := self[i];
+
+  tempOffers.pullMarkets(userAgent);
+
+  for i := 0 to high(self) do
+    self[i] := tempOffers[i].item;
+end;
+
+function tGEItem.parseMap(itemMap : tJSONArray) : boolean;
 var
   tempObject : tJSONObject;
-  i, j : Int32;
+  i : Int32;
 begin
   result := True;
-  for j := 0 to high(self.offers) do
-  begin
-    if self.offers[j].item.name = '' then continue;
 
-    try
-      for i := 0 to self.itemMap.length()-1 do
+  if self.name = '' then exit(True);  // No item to set up
+  if self.itemID > 0 then exit(True); // Already set up
+
+  try
+    for i := 0 to itemMap.length()-1 do
+    begin
+      tempObject := itemMap.getJSONObject(i);
+      if self.name = tempObject.getString('name') then
       begin
-        tempObject := self.itemMap.getJSONObject(i);
-        if self.offers[j].item.name = tempObject.getString('name') then
-        begin
-          self.offers[j].item.itemID := tempObject.getInt('id');
-          if tempObject.has('limit') then
-            self.offers[j].item.limit := tempObject.getInt('limit');
-          break;
-        end;
+        self.itemID := tempObject.getInt('id');
+        if tempObject.has('limit') then
+          self.limit := tempObject.getInt('limit');
+        break;
       end;
-    except
-      writeln('Failed to parse: ', self.offers[j].item.name);
-      result := False;
     end;
+  except
+    writeln('Failed to parse: ', self.name);
+    result := False;
   end;
+end;
+
+function tGEItemArray.parseMap(itemMap : tJSONArray): boolean; overload;
+var i : Int32;
+begin
+  result := True;
+
+  for i := 0 to high(self) do
+    if not self[i].parseMap(itemMap) then result := False;
+    // Return false if not all items were parsed, but don't exit until trying all items
+    // Not sure how to handle yet but I don't want it killing the script yet either
+end;
+
+function tGEOfferArray.parseMap(itemMap : tJSONArray) : boolean; overload;
+var
+  i : Int32;
+begin
+  result := True;
+  for i := 0 to high(self) do
+  begin
+    if self[i].item.name = '' then continue;  // No item to set up
+    if self[i].item.itemID > 0 then continue; // Already set up
+
+    if not self[i].item.parseMap(itemMap) then result := False;
+  end;
+end;
+
+function tScript.parseMap() : boolean; overload;
+begin
+  result := self.offers.parseMap(self.itemMap);
 end;
 
