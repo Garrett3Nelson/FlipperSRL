@@ -83,7 +83,10 @@ begin
 
   if self.GetSetupOfferButton(button).Click() then
     if button = ERSGESetupOfferButton.QUANTITY_ENTER then
-      KeyBoard.Send(toStr(quantity), VK_ENTER);
+    begin
+      if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'How many do you wish to buy?', 250, 4000) then
+        KeyBoard.Send(toStr(quantity), VK_ENTER);
+    end;
 
   result := waitUntil((self.GetItemQuantity() = quantity), 200, 2000);
 end;
@@ -133,8 +136,10 @@ begin
     begin
       wait(random(200,400));
       if button = ERSGESetupOfferButton.PRICE_ENTER then
-        KeyBoard.Send(price, VK_ENTER);
-        // This probably needs a sensible failsafe to wait for the input to open
+      begin
+        if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'Set a price for each item:', 250, 4000) then
+          KeyBoard.Send(price, VK_ENTER);
+      end;
     end;
   end;
 end;
@@ -182,7 +187,8 @@ begin
       exit(False);
     end;
 
-    result := Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click();
+    if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
+      result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.BUY, 250, 4000);
   end else
   begin
     writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
@@ -204,7 +210,8 @@ begin
     end;
 
     waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000);
-  end;
+  end else
+    slotNumber := self.NextEmptySlot(); // For checking result at the end only
 
   if not Inventory.ClickItem(itemName) then
   begin
@@ -219,7 +226,8 @@ begin
 
   wait(random(400,800));
 
-  result := Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click();
+  if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
+    result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000);
 end;
 
 function TRSGrandExchange.CollectOffer(slotNumber : Int32 = -1) : Boolean;
