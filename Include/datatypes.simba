@@ -221,9 +221,9 @@ begin
   if min(self.buy, self.sell) = 0 then
     Result := 0.0
   else if (self.buy > self.sell) then // If the item is set for a pricecheck
-    Result := 100*(self.buy - self.sell - 2) / self.sell
+    Result := 100*(self.buy - self.sell - 2 - self.tax) / self.sell
   else if (self.sell > self.buy) then // If the item is set for a flip (doesn't need -2 because it's already happened)
-    Result := 100*(self.sell -self.buy) / self.buy;
+    Result := 100*(self.sell - self.buy - self.tax) / self.buy;
     // The min/max are used to ensure we calculate the right method (higher - lower)/lower
     // margin := (revenue-spend-2)/spend
     // The 2 is subtracted because when we set up for flip we're going to reduce by 1gp on each side
@@ -232,7 +232,7 @@ end;
 
 function tGEItem.stringify() : String;
 begin
-  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(self.margin()) + ", Limit: " + toStr(self.limit);
+  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(round(self.margin(), 3)) + ", Tax: " + toStr(self.tax) + ", Real Sell: " + toStr(self.RealSell) + ", Real Margin: " + toStr(self.RealSell - min(self.buy, self.sell)) + ", Limit: " + toStr(self.limit);
 end;
 
 (*

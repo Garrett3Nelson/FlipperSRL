@@ -19,9 +19,12 @@ This is used for tracking item information through offers
 *)
 
 
+
+
 type tGEItem = record
   name : String;
   itemID, limit, market, buy, sell : Int32;
+  tax, RealSell : Int32;
   end;
 
   tGEItemArray = Array of tGEItem;

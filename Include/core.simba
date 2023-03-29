@@ -7,7 +7,7 @@ begin
   for i := 0 to 7 do
   begin
     slot := grandExchange.GetOfferStatus(i);
-    if slot.OfferType <> ERSGEOfferType.EMPTY then Result += 1;
+    if slot.OfferType <> ERSGEOfferType.UNKNOWN then Result += 1;
   end;
 end;
 
@@ -29,6 +29,12 @@ begin
   if not grandExchange.Open() then
   begin
     self.print('Did not open GE successfully', eDebugType.FATAL);
+    terminateScript();
+  end;
+
+  if not waitUntil(self.countActiveSlots() > 0, 250, 4000) then
+  begin
+    self.print('initPlayer(): FATAL: No slots detected', eDebugType.FATAL);
     terminateScript();
   end;
 
@@ -83,6 +89,8 @@ begin
     grandExchange.AbortOffer(self.slotnumber);
   end;
 
+  wait(random(400,800));
+
   if not grandExchange.CollectOffer() then
     writeln('WARNING: doBuyCheck(): Buy offer did not collect');
 
@@ -106,9 +114,12 @@ begin
   begin
     writeln('doSellCheck(): Offer did not sell');
     grandExchange.AbortOffer(self.slotnumber);
-  end else
-    if not grandExchange.CollectOffer() then
-      writeln('WARNING: doSellCheck(): Sell offer did not collect');
+  end;
+
+  wait(random(400,800));
+
+  if not grandExchange.CollectOffer() then
+    writeln('WARNING: doSellCheck(): Sell offer did not collect');
 
   result := waitUntil(grandExchange.GetOfferStatus(self.slotnumber).OfferType = ERSGEOfferType.EMPTY, 250, 2000);
 end;
@@ -123,6 +134,9 @@ begin
   self.slotNumber := grandExchange.nextEmptySlot();
 
   if self.doBuyCheck() then
+  begin
+    self.slotNumber := grandExchange.nextEmptySlot();
+
     if self.doSellCheck() then
     begin
       grandExchange.changeTab();
@@ -132,11 +146,17 @@ begin
       grandExchange.changeTab(False);
       wait(random(400,800));
 
-      self.item.buy := history[1].PricePerItem;
-      self.item.sell := history[0].PricePerItem;
+      self.item.buy   := history[1].PricePerItem;
+      self.spent      += history[1].TotalPrice;
 
+      self.item.sell  := history[0].PreTax;
+      self.revenue    += history[0].TotalPrice;
+
+      self.item.tax           := history[0].PreTax - history[0].PricePerItem;
+      self.item.realSell      := (self.item.buy - 1) - trunc(self.item.buy * 0.01);
       result := True;
     end;
+  end;
 end;
 
 (*
