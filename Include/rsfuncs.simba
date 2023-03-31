@@ -328,7 +328,7 @@ function TRSGrandExchange.ReturnToMain() : Boolean;
 
     ATPA := TPA.Cluster(1);
 
-    debug(ATPA);
+    //debug(ATPA);
     for TPA in ATPA do
     begin
       //if Length(TPA) > 75 then
