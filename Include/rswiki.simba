@@ -1,4 +1,4 @@
-function tScript.pullMapping(userAgent: String = 'Simba Client - Mapping Information'): tJSONArray;
+procedure tScript.pullMapping(userAgent: String = 'Simba Client - Mapping Information');
 var
   url, resString : String;
   theClient : Int32;
@@ -10,10 +10,34 @@ begin
     SetHTTPUserAgent(theClient, userAgent);
 
     resString := GetHTTPPage(theClient, url);
-    result.Init(resString);
+    self.itemMap.Init(resString);
   except
     // Add debug of error
     self.print("Failed to get item data, cannot load items", eDebugType.FATAL);
+    terminateScript();
+  finally
+    FreeHTTPClient(theClient);
+  end;
+end;
+
+function getHourlyPrices(userAgent: String = 'Simba Client - Market Information') : tJSONObject;
+var
+  theClient : Int32;
+  url, response : String;
+begin
+  url := 'https://prices.runescape.wiki/api/v1/osrs/1h';
+
+  try
+    theClient := InitializeHTTPClient(False);
+    SetHTTPUserAgent(theClient, userAgent);
+
+    response := GetHTTPPage(theClient, url);
+
+    result.Init(response);
+    result := result.getJSONObject('data');
+  except
+    writeln('Failed to get price information from RSWiki');
+    terminateScript;
   finally
     FreeHTTPClient(theClient);
   end;

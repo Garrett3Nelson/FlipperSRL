@@ -81,109 +81,11 @@ begin
   delete(self, index, 1);
 end;
 
-(*
-tGEItemArray.clear
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEItemArray.clear();
-Deletes all items from the array.
-*)
-
-procedure tGEItemArray.clear();
-var
-  i, lim : Int32;
-begin
-  if length(self) = 0 then
-    exit();
-
-  lim := high(self);
-  for i := lim downto 0 do
-    self.deleteIndex(i);
-end;
-
  (*
 tGEItem Functions
 -------------------
 *)
 
-(*
-tGEItemFancy.convert
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   function tGEItemFancy.convert() : tGEItem;
-Converts from tGEItemFancy to regular tGEItem - strips the fancy tracking
-*)
-
-function tGEItemFancy.convert() : tGEItem;
-begin
-  result.name := self.name;
-  result.itemID := self.itemID;
-  result.limit := self.limit;
-  result.market := self.market;
-  result.sell := self.sell;
-end;
-
-(*
-tGEItemFancy.quickSort
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEItemFancy.quickSort(iLow, iHigh);
-Implements a quicksort algorithm to sort low-high for profit/hr
-*)
-
-procedure tGEItemFancyArray.quickSort(iLow, iHigh : Integer);
-var
-  lo, hi : Integer;
-  pivot : Double;
-  t : tGEItemFancy;
-begin
-  lo := iLow;
-  hi := iHigh;
-  pivot := self[round((lo+hi)/2)].profitPer;
-
-  repeat
-    while self[lo].profitPer < pivot do inc(lo);
-    while self[hi].profitPer > pivot do dec(hi);
-    if lo <= hi then
-    begin
-      t := self[lo];
-      self[lo] := self[hi];
-      self[hi] := t;
-      inc(lo);
-      dec(hi);
-    end;
-  until (lo > hi);
-  if hi > iLow then self.quickSort(iLow, hi);
-  if lo < iHigh then self.quickSort(lo, iHigh);
-end;
-
-(*
-tGEItemFancyArray.Append
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEItemFancyArray.append(const item : tGEItemFancy);
-Appends an item to the end of the array
-*)
-
-procedure tGEItemFancyArray.append(constref item : tGEItemFancy);
-begin
-  insert(item, self, length(self));
-end;
-
-(*
-tGEItem.initPriceCheck
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEItem.initPriceCheck();
-Takes the market price and preps the item for a pricecheck. Buy is set to
-auto-buy price and sell is set to auto-sell.
-*)
-
-procedure tGEItem.initPriceCheck();
-begin
-  self.buy := round(self.market * 1.5); // Buy at 1.5x market for auto-buy
-  self.sell := round(self.market * 0.75); // Buy at 75% market for auto-sell
-end;
 
 (*
 tGEItem.initFlip
@@ -329,58 +231,6 @@ begin
 end;
 
 (*
-tGEOffer.encodeTrades
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   function tGEOffer.encodeTrades() : String;
-Creates a string that can be sent to the database to save trades. Used if the
-script crashes, we can reload the previous trades to avoid the trade limit.
-Encodes to "(elapsed time):amount;" for every tTradeRecord.
-*)
-
-function tGEOffer.encodeTrades() : String;
-var
-  i, lim : Integer;
-begin
-  if length(self.previousTrades) = 0 then  // Nothing to encode if the array is empty
-    exit();
-  lim := high(self.previousTrades);
-
-  for i := 0 to lim do
-    result += toStr(self.previousTrades[i].tradeFinished - self.startTime) + ":" + toStr(self.previousTrades[i].amount) + ";";
-end;
-
-(*
-tGEOffer.decodeTrades
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEOffer.decodeTrades(trades : String);
-Decodes the string as loaded from the database and creates tTradeRecords.
-*)
-
-procedure tGEOffer.decodeTrades(trades : String);
-var
-  stringArray, tmpStrArr : TStringArray;
-  i, lim : Integer;
-begin
-  // The string is "time1:amount1;time2:amount2;"
-  stringArray := explode(";", trades);
-
-  // We should now have an array of "time:amount" pairs
-  // //tScript.print(stringArray);
-  lim := high(stringArray);
-  for i := 0 to lim do
-  begin
-    tmpStrArr := explode(":", stringArray[i]);
-
-    // Now tmpStrArr[0] is "time" and tmpStrArr[1] is "amount"
-    if (length(tmpStrArr) = 2) then
-      if (length(tmpStrArr[0]) > 0) and (length(tmpStrArr[1]) > 0) then
-        self.previousTrades.append(createTradeRecord(strToInt(tmpStrArr[0]) + self.startTime, strToInt(tmpStrArr[1])));
-  end;
-end;
-
-(*
 tGESlot.debug
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. pascal::
@@ -391,7 +241,7 @@ slot number, status, last progress.
 
 procedure tGESlot.debug();
 begin
-  writeln("Slot Status: " + self.status + ". Current progress: " + toStr(self.curProgress) + ". Last progress: " + toStr(self.lastProgress));
+  writeln(toStr(self));
 end;
 
 function tGEOffer.stringify(collected : Boolean = True) : String;
@@ -472,41 +322,70 @@ begin
       result += 1;
 end;
 
+// Returns a tIA of the trading slot numbers
+function tGEOfferArray.CountTrading() : tIntegerArray;
+var
+  i : Integer;
+begin
+  for i := 0 to high(self) do
+    if ((self[i].slot.OfferType <> ERSGEOfferType.EMPTY) and (self[i].slot.OfferType <> ERSGEOfferType.UNKNOWN)) then result.append(self[i].slotNumber);
+end;
+
+function tGEOfferArray.CountComplete() : Int32;
+var
+  i : Integer;
+begin
+  for i := 0 to high(self) do
+    if self[i].slot.Progress = 100 then result += 1;
+end;
+
  (*
 tGESlot Functions
 -------------------
 *)
+
+procedure tGESlot.Update(slot : TRSGEOfferStatus);
+begin
+  with self do
+  begin
+    OfferType     := slot.OfferType;
+    Item          := slot.Item;
+    Quantity      := slot.Quantity;;
+    PricePerItem  := slot.PricePerItem;
+    TotalPrice    := slot.TotalPrice;
+    Progress      := slot.Progress;
+  end;
+end;
 
 (*
 tGEOffer.updateSlot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. pascal::
    procedure tGESlot.update();
-Updates the status, item name, and progress.
+Updates the slot from mainscreen information.
 *)
 
 procedure tGEOffer.updateSlot();
 begin
-  if (self.status = "unused") then exit();
-  //grandExchange.GetOfferStatus(self.slotNumber); // Pulls the status from SRL GE functions
+  if self.slotNumber > -1 then
+    self.slot.update(grandExchange.GetOfferStatus(self.slotNumber));
+end;
 
-  // Check that there was actually an item to check, otherwise we're done
-  if (self.status <> "unused") and (self.slot.status <> "empty") then
-    grandExchange.GetProgress(self.slotNumber);
-
-  //self.__getNameMS(False); // For debugging only
-  //tScript.print('tGEOffer.updateSlot(): Updated slot number ' + toStr(self.slotNumber));
-  //self.debug();
+procedure tGEOfferArray.updateSlots();
+var i : Int32;
+begin
+  for i := 0 to high(self) do
+    self[i].updateSlot();
 end;
 
 function tGEHistory.stringify() : String;
 begin
-  result := self.offerType + ': ' + self.itemName + '. Value: ' + toStr(self.totalValue) + '. Quantity: ' + toStr(self.quantity) + '. Each:  ' + toStr(self.eachValue) + '. Used = ' + toStr(self.isUsed);
+  result := self.offerType + ': ' + self.Item + '. Value: ' + toStr(self.TotalPrice) + '. Quantity: ' + toStr(self.Quantity) + '. Each:  ' + toStr(self.PricePerItem) + '. Used = ' + toStr(self.isUsed);
 end;
 
 procedure tGEHistory.debug();
 begin
-  //tScript.print(self.stringify());
+  writeln(self.stringify());
 end;
 
 procedure tGEHistoryArray.debug();
@@ -550,6 +429,25 @@ begin
   delete(self, index, 1);
 end;
 
+procedure tGEHistoryArray.trimUsed();
+var
+  i, usedCount, deleteTo : Int32;
+begin
+  for i := 0 to high(self) do
+  begin
+    if usedCount = 2 then
+    begin
+      deleteTo := i;
+      break;
+    end;
+
+    if self[i].isUsed then usedCount += 1;
+  end;
+
+  for i := high(self) downto deleteTo do
+    if self[i].isUsed or self[i].firstPass then self.deleteIndex(i);
+end;
+
 function tGEHistoryArray.matchLine(constref history : tGEHistory; startLine : Integer = 0) : Integer;
 var
   i, lim : Integer;
@@ -558,12 +456,13 @@ begin
 
   lim := high(self);
   for i := startLine to lim do
-  if (stringMatch(self[i].itemName, history.itemName) > 0.9) then
-    if (self[i].offerType = history.offerType) then
-      if (self[i].quantity = history.quantity) then
-        if (self[i].totalValue = history.totalValue) or ((self[i].eachValue = history.eachValue) and (history.eachValue > 0)) then
+  if (stringMatch(self[i].Item, history.Item) > 0.9) then
+    if (self[i].OfferType = history.OfferType) then
+      if (self[i].Quantity = history.Quantity) then
+        if (self[i].TotalPrice = history.TotalPrice) or ((self[i].PricePerItem = history.PricePerItem) and (history.PricePerItem > 0)) then
         begin
-          ////tScript.print('Matched ' + history.itemName + ' with ' + self[i].itemName);
+          //writeln('Matched ' + history.Item + ' with ' + self[i].Item);
+          //writeln('Matched on line ', i);
           exit(i);
         end;
 end;
@@ -572,26 +471,24 @@ end;
 tGEHistoryArray.match
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. pascal::
-   function tGEHistoryArray.match(target : tGEHistoryArray) : Integer;
-Matches the old history array (target) to the new one and returns the index
-where the match was found. Updates the new array with the isUsed status of
-the old array.
+   function tGEHistoryArray.match(NewHist : tGEHistoryArray) : Integer;
+Matches the new history array (NewHist) to the previous history and returns the
+index where the match was found. Keeps the old array status (isUsed).
 *)
-// Where self is the new array and target is the old array
-function tGEHistoryArray.match(constref Target : tGEHistoryArray) : Integer;
+function tGEHistoryArray.match(NewHist : tGEHistoryArray) : Integer;
 var
-  i, lim, j, lim2, matches, lastMatch, matchRes : Integer;
+  i, lim, j, lim2, matches, lastMatch, matchLine : Integer;
 begin
   lim := high(self);
-  lim2 := high(target);
+  lim2 := high(NewHist);
 
-  for j := 0 to lim2 do
+  for j := 0 to lim do
   begin
-    matchRes := self.matchLine(target[j], lastMatch);
-    if matchRes > 0 then
+    matchLine := NewHist.matchLine(self[j], lastMatch);
+    if matchLine >= 0 then
     begin
-      lastMatch := matchRes+1;
-      if result = 0 then result := matchRes;
+      lastMatch := matchLine+1;
+      if result = 0 then result := matchLine;
       matches += 1;
       if (matches = 2) or (lastMatch > lim) then
         break();
@@ -605,8 +502,179 @@ begin
   end;
 
   if (result > 0) then
-    for i := result to lim do
-      self[i].isUsed := target[i-result].isUsed;
+  begin
+    // Delete duplicates
+    for i := high(newHist) downto result do
+      newHist.deleteIndex(i);
+
+    // Insert remaining at the top
+    insert(newHist, self, 0);
+
+    // Removes excess (more than 2) history items that are already logged.
+    self.trimUsed();
+  end else
+    self := newHist;
+end;
+
+procedure tGEHistoryArray.Update();
+
+  function CastHist(hist: tRSGEHistory) : tGEHistoryArray;
+  var
+    tCast : tGEHistory;
+    lineItem : TRSGEHistoryItem;
+  begin
+    for lineItem in hist do
+    begin
+      with tCast do
+      begin
+        tCast.OfferType := lineItem.OfferType;
+        tCast.Item:= lineItem.Item;
+        tCast.Quantity:= lineItem.Quantity;
+        tCast.PricePerItem:= lineItem.PricePerItem;
+        tCast.TotalPrice:= lineItem.TotalPrice;
+        tCast.PreTax:= lineItem.PreTax;
+        tCast.Bounds:= lineItem.Bounds;
+        tCast.isUsed:= False;
+      end;
+
+      result.append(tCast);
+    end;
+  end;
+
+var
+  newHistory : tGEHistoryArray;
+  firstPass : Boolean;
+  i : Int32;
+begin
+  grandExchange.changeTab();  // Change to History tab
+  wait(random(400,800));
+
+  firstPass := length(self) = 0;
+
+  newHistory := CastHist(GrandExchange.GetHistory());
+
+  grandExchange.changeTab(False);
+  wait(random(400,800));
+
+  writeln('New History Debug');
+  newHistory.debug();
+
+  writeln('Old History Debug');
+  self.debug();
+
+  self.match(newHistory);
+
+  if firstPass then
+    for i := 0 to high(self) do
+      self[i].firstPass := True;
+
+  writeln('Post-Match Debug');
+  self.debug();
+end;
+
+// Count how many slots have active offers
+function tScript.countActiveSlots() : Int32;
+var
+  i : Int32;
+  slot : TRSGEOfferStatus;
+begin
+  for i := 0 to 7 do
+  begin
+    slot := grandExchange.GetOfferStatus(i);
+    if slot.OfferType <> ERSGEOfferType.UNKNOWN then Result += 1;
+  end;
+end;
+
+// Count how many slots are empty
+function tScript.countFreeSlots() : Int32;
+var
+  i : Int32;
+  slot : TRSGEOfferStatus;
+begin
+  for i := 0 to 7 do
+  begin
+    slot := grandExchange.GetOfferStatus(i);
+    if slot.OfferType = ERSGEOfferType.EMPTY then Result += 1;
+  end;
+end;
+
+procedure tScript.OverRideItems();
+var
+  bmp : Array of tMufasaBitmap;
+  items : tStringArray;
+  item : String;
+  sourcePath : String = {$macro CURRENT_DIRECTORY};
+  i : Int32;
+begin
+  SourcePath := SourcePath.Before(DirectorySeparator + 'Include') + DirectorySeparator + 'ItemOverride' + DirectorySeparator;
+
+  items := GetFiles(SourcePath, 'png');
+
+  if length(items) = 0 then exit();
+  SetLength(bmp, length(items));
+
+  for item in items do
+  begin
+    item := item.before('.png');
+
+    bmp[i].Init(Client.GetMBitmaps());
+    bmp[i].LoadFromFile(SourcePath + item + '.png');
+    bmp[i].setName(Item);
+    bmp[i].ReplaceColor(RS_ITEM_SHADOW, 0);
+
+    try
+      itemFinder.getItemImages(Item);
+      itemFinder.AddItemName(Item, toStr(ItemFinder.GetItemIDs(Item)[0]+1));
+      itemFinder.ItemImages += [Item, [bmp[i]]];
+      //writeln('Overrode ', item);
+    except
+    end;
+  end;
+end;
+
+(*
+tScript.updateTrades
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. pascal::
+   procedure tScript.updateTrades();
+Removes any items from the recentItem array that were traded more than 4 hours ago.
+*)
+
+procedure tScript.updateTrades();
+var
+  cutoff, lim, i : Integer;
+begin
+  cutoff := getSystemUnix() - (4*60*60*1000); // 4 hour cutoff for trades
+
+  lim := high(self.recentItems);
+
+  for i := lim downto 0 do
+    if self.recentItems[i].tradeFinished < cutoff then // if it's been longer than 4 hours
+      self.recentItems.deleteIndex(i);
+end;
+
+(*
+tScript.addTrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. pascal::
+   procedure tScript.addTrade(trade : tTradeRecord);
+Adds a given tradeRecord to the recentItem list.
+*)
+
+procedure tScript.addTrade(constref trade : tTradeRecord);
+begin
+  if trade.amount <= 0 then
+    self.print("ERROR: Cannot add trade of 0 amount")
+  else
+    self.recentItems.append(trade);
+
+  self.updateTrades(); // Update to remove any old trades
+end;
+
+
+function tScript.CashAllowable() : Int32;
+begin
+  result := round((0.95 * self.playerCash) / self.countFreeSlots());
 end;
 
 (*
@@ -637,8 +705,12 @@ Resets all the variables to default. Also resets the offer data for the slot.
 
 procedure tGESlot.reset();
 begin
-  self.status := "empty";
-  self.curProgress := 0;
+  self.OfferType := ERSGEOfferType.EMPTY;
+  self.Item := '';
+  self.Quantity := 0;
+  self.PricePerItem := 0;
+  self.TotalPrice := 0;
+  self.Progress := 0;
   self.lastProgress := 0;
 end;
 
@@ -662,7 +734,7 @@ begin
   self.revenue := 0;
   self.startTime := 0;
   self.lastUpdate := 0;
-  self.slotNumber := 0;
+  self.slotNumber := -1;
   self.previousTrades := [];
   self.waitTime := defaultWait;
   self.status := "empty";
@@ -697,6 +769,20 @@ begin
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
   setLength(self.recentItems, 0);
-  self.ItemMap.Free();
+end;
+
+procedure TScript.Free();
+begin
+  try
+    RSClient.Image.Clear();
+  except
+    Self.Print('Couldnt clear client');
+  end;
+  Self.Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades');
+  Self.Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue');
+  Self.Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp');
+
+  Self.Print('You did great out there');
+  self.itemMap.Free();
 end;
 

@@ -21,20 +21,22 @@ begin
   if self.debugLevel = eDebugType.NONE then exit();
 
   if level = eDebugType.FATAL then
+  begin
     writeln(dateTimeStamp(), ' [FATAL]: ', txt);
+    exit;
+  end;
 
   if (self.debugLevel = eDebugType.DEV) or ((self.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
     writeln(dateTimeStamp(), ' [BOT]: ', txt);
 end;
 
-procedure tScript.takeScreenshot(fileName: string);
+procedure takeScreenshot(fileName: string);
 begin
   CreateDirectory('Screenshots/Flipper');
   saveScreenshot('Screenshots/Flipper/' + dateTimeStamp() + ' ' + fileName);
-  self.print('Saving screenshot: ' + fileName, eDebugType.DEV);
 end;
 
-function tScript.smartStringMatch(source, target : String; diff : Integer) : Boolean;
+function smartStringMatch(source, target : String; diff : Integer) : Boolean;
 
   function trimBad(text, omit : String) : String;
   var

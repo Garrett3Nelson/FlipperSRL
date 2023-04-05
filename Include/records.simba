@@ -73,16 +73,13 @@ type tGESlot
 .. pascal::
    tGESlot = record
      lastProgress : Int32; // Progress the last time we checked the offer
-     curProgress : Int32; // The progress when reading from the screen
-     status : String; // The offer status. Empty/Unused/Buying/Selling/Complete/Abandoned
    end;
 Keeps track of the information for each Slot. Each slot has an offer and each offer
 has an item.
 *)
 
-type tGESlot = record
-  lastProgress, curProgress : Int32;
-  status : String;
+type tGESlot = record(TRSGEOfferStatus)
+  lastProgress : Int32;
 end;
 
   tGESlotArray = Array of tGESlot;
@@ -129,17 +126,13 @@ type tGEHistory
 ~~~~~~~~~~~~~~~~~~
 .. pascal::
    tGEHistory = record()
-     offerType, itemName : String // Identifying information for the offer
-     totalValue, eachValue : Integer; // Price information for the history.
      isUsed : Boolean; // If the history slot has been used for an offer update yet
    end;
 Tracks the information for trade history
 *)
 
-type tGEHistory = record
-  offerType, itemName : String;
-  totalValue, eachValue, quantity : Integer;
-  isUsed : Boolean;
+type tGEHistory = record(TRSGEHistoryItem)
+  isUsed, firstPass : Boolean;
 end;
 
   tGEHistoryArray = Array of tGEHistory;
@@ -170,15 +163,21 @@ type
     debugLevel : eDebugType;
 
     // Insert progress report variables here
-    playerCash : Int32;
+    completeOffers : tGEOfferArray;
+    totalRevenue : Int32;
+    totalSpend : Int32;
 
 
-    // Specific Script Tracking
+    // Active Script Variables
     offers : tGEOfferArray;
     history : tGEHistoryArray;
     itemQ : TGEItemArray;
     recentItems : tTradeRecordArray;
     itemMap : tJSONArray;
+    itemList : tStringArray;
+    itemBlackList : tStringArray;
+    playerCash : Int32;
+    coolDown : Boolean;
 
     // SRL Related Variables
     RSW : TRSWalker;

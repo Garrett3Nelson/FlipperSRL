@@ -85,10 +85,16 @@ begin
     if button = ERSGESetupOfferButton.QUANTITY_ENTER then
     begin
       if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'How many do you wish to buy?', 250, 4000) then
+      begin
+        wait(random(400,800));
         KeyBoard.Send(toStr(quantity), VK_ENTER);
+      end;
     end;
 
-  result := waitUntil((self.GetItemQuantity() = quantity), 200, 2000);
+  if quantity > -1 then
+    result := waitUntil((self.GetItemQuantity() = quantity), 200, 2000)
+  else
+    result := waitUntil((self.GetItemQuantity() > 0), 200, 2000);
 end;
 
 procedure TRSGrandExchange._EnterPrice(price : String);
@@ -138,7 +144,10 @@ begin
       if button = ERSGESetupOfferButton.PRICE_ENTER then
       begin
         if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'Set a price for each item:', 250, 4000) then
-          KeyBoard.Send(price, VK_ENTER);
+        begin
+          wait(random(400,800));
+          KeyBoard.Send(toStr(price), VK_ENTER);
+        end;
       end;
     end;
   end;
@@ -198,9 +207,21 @@ end;
 
 // Enter -1 for ALL
 function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean;
+var item : String;
 begin
   if not self.IsOpen() then Exit(False);
 
+  item := itemName;
+  if not Inventory.ContainsItem(item) then
+    if Inventory.ContainsItem('noted ' + itemName) then
+      item := 'noted ' + itemName
+    else
+    begin
+      writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
+      exit(False);
+    end;
+
+  //writeln('Slot Number: ', slotNumber);
   if slotNumber > -1 then
   begin
     if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Click() then
@@ -213,9 +234,9 @@ begin
   end else
     slotNumber := self.NextEmptySlot(); // For checking result at the end only
 
-  if not Inventory.ClickItem(itemName) then
+  if not Inventory.ClickItem(item) then
   begin
-    writeln('TRSGrandExchange.createSellOffer: Failed to find and click ', itemName);
+    writeln('TRSGrandExchange.createSellOffer: Failed to click ', itemName);
     exit(False);
   end;
 
@@ -235,10 +256,12 @@ var
   cBoxes : TBoxArray;
   collectionBox : tBox;
 begin
+
   if (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) or (slotNumber > -1) then
   begin
     if not (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then
     begin
+      writeln('Slot was specified, trying to open');
       Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
       if not waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000) then exit(False);
     end;
@@ -246,7 +269,7 @@ begin
   // Interface buttons can't locate the collection boxes easily within this interface
   // TBD if grids are the best option
     cBoxes := grid(2, 1, 36, 33, point(15,0), point(self.X2 - 105, self.Y2 - 52));
-
+    writeln('Trying to collect from collection boxes');
     for collectionBox in cBoxes do
       if SRL.CountColor(CTS1(65536, 0), CollectionBox) > 0 then
       begin
@@ -254,9 +277,13 @@ begin
         // May need a failsafe to confirm it's collected
       end;
   end else
-    exit(Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click());
+  begin
+    writeln('At main screen, collect button visible = ', Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible);
+    Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click();
+  end;
 
   result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+  writeln('Collection Result: ', result);
 end;
 
 function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
