@@ -604,7 +604,7 @@ var
   items : tStringArray;
   item : String;
   sourcePath : String = {$macro CURRENT_DIRECTORY};
-  i : Int32;
+  i, j : Int32;
 begin
   SourcePath := SourcePath.Before(DirectorySeparator + 'Include') + DirectorySeparator + 'ItemOverride' + DirectorySeparator;
 
@@ -624,9 +624,13 @@ begin
 
     try
       itemFinder.getItemImages(Item);
-      itemFinder.AddItemName(Item, toStr(ItemFinder.GetItemIDs(Item)[0]+1));
-      itemFinder.ItemImages += [Item, [bmp[i]]];
-      //writeln('Overrode ', item);
+
+      for j := 0 to High(itemFinder.ItemImages) do
+        if (itemFinder.ItemImages[j].Name = Item) then
+        begin
+          itemFinder.ItemImages[j].Images += bmp[i];
+          break();
+        end;
     except
     end;
   end;
