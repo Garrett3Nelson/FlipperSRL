@@ -282,7 +282,8 @@ var
 begin
   lim := high(self);
   for i := 0 to lim do
-    self[i].debug();
+    if self[i].status <> 'empty' then
+      self[i].debug();
 end;
 
 procedure tGEOfferArray.append(constref offer : tGEOffer);
@@ -381,7 +382,7 @@ end;
 
 function tGEHistory.stringify() : String;
 begin
-  result := self.offerType + ': ' + self.Item + '. Value: ' + toStr(self.TotalPrice) + '. Quantity: ' + toStr(self.Quantity) + '. Each:  ' + toStr(self.PricePerItem) + '. Used = ' + toStr(self.isUsed);
+  result := self.offerType + ': ' + self.Item + '. Value: ' + toStr(self.TotalPrice) + '. Quantity: ' + toStr(self.Quantity) + '. Each:  ' + toStr(self.PricePerItem) + '. Used = ' + toStr(self.isUsed) + '. firstPass = ' + toStr(self.firstPass);
 end;
 
 procedure tGEHistory.debug();
@@ -445,11 +446,14 @@ begin
     if self[i].isUsed then usedCount += 1;
   end;
 
-  // Still want to keep 5 items for matching later
-  if deleteTo < 5 then exit();
+  //writeln('DeleteTo: ', deleteTo);
 
-  for i := high(self) downto deleteTo do
+  for i := high(self) downto max(deleteTo, 5) do
     if self[i].isUsed or self[i].firstPass then self.deleteIndex(i);
+
+  // A hacky way of removing lost (unused) items from failed buys
+  for i := high(self) downto 5 do
+    if (not self[i].isUsed) and (not self[i].firstPass) then self[i].firstPass := True;
 end;
 
 function tGEHistoryArray.matchLine(constref history : tGEHistory; startLine : Integer = 0) : Integer;
@@ -489,6 +493,8 @@ begin
     exit(0);
   end;
 
+  result := -1;
+
   lim := high(self);
   lim2 := high(NewHist);
 
@@ -498,22 +504,23 @@ begin
     if matchLine >= 0 then
     begin
       lastMatch := matchLine+1;
-      if result = 0 then result := matchLine;
+      if result = -1 then result := matchLine;
       matches += 1;
-      if (matches = 2) or (lastMatch > lim) then
+      if (matches = 2) or (lastMatch > min(lim, lim2)) then
         break();
     end else
     begin
       // if match failed failed, matches = 0 again
       matches := 0;
       result := -1;
-      if lastMatch > lim then break();
+      if lastMatch > min(lim, lim2) then break();
     end;
   end;
 
   // If they matched from the first line, no update required
   if result = 0 then exit();
 
+  //writeln('result: ', result);
   if (result > -1) then
   begin
     // Delete duplicates
@@ -563,6 +570,7 @@ begin
 
   firstPass := length(self) = 0;
 
+  setLength(newHistory, 0);
   newHistory := CastHist(GrandExchange.GetHistory());
 
   grandExchange.changeTab(False);
@@ -809,6 +817,7 @@ begin
   Self.Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades');
   Self.Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue');
   Self.Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp');
+  Self.Print('Blacklist for next time: ' + toStr(self.itemBlackList));
 
   Self.Print('You did great out there');
   self.itemMap.Free();
