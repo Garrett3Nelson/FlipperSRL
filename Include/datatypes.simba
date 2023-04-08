@@ -573,6 +573,9 @@ begin
   setLength(newHistory, 0);
   newHistory := CastHist(GrandExchange.GetHistory());
 
+  if length(newHistory) > 5 then
+    if newHistory[5].OfferType = '' then newHistory.deleteIndex(5);
+
   grandExchange.changeTab(False);
   wait(random(400,800));
 
