@@ -149,7 +149,7 @@ itemID, name, market, buy/sell, margin, and limit.
 
 procedure tGEItem.debug();
 begin
-  writeln(self.stringify());
+  print(self.stringify());
 end;
 
  (*
@@ -242,7 +242,7 @@ slot number, status, last progress.
 
 procedure tGESlot.debug();
 begin
-  writeln(toStr(self));
+  print(toStr(self));
 end;
 
 function tGEOffer.stringify(collected : Boolean = True) : String;
@@ -263,7 +263,7 @@ tradeID, status, toTrade, and purchased.
 
 procedure tGEOffer.debug();
 begin
-  writeln(self.stringify());
+  print(self.stringify());
   self.item.debug();
   self.slot.debug();
 end;
@@ -333,13 +333,15 @@ begin
     if ((self[i].slot.OfferType <> ERSGEOfferType.EMPTY) and (self[i].slot.OfferType <> ERSGEOfferType.UNKNOWN)) then result.append(self[i].slotNumber);
 end;
 
-function tGEOfferArray.CountComplete() : Int32;
+function tGEOfferArray.CountComplete() : tIntegerArray;
 var
   i : Integer;
 begin
   for i := 0 to high(self) do
-    if self[i].slot.Progress = 100 then result += 1;
+    if self[i].slot.Progress = 100 then result.append(self[i].slotNumber);
 end;
+
+
 
  (*
 tGESlot Functions
@@ -387,7 +389,7 @@ end;
 
 procedure tGEHistory.debug();
 begin
-  writeln(self.stringify());
+  print(self.stringify());
 end;
 
 procedure tGEHistoryArray.debug();
@@ -522,17 +524,15 @@ begin
 
   //writeln('result: ', result);
   if (result > -1) then
-  begin
     // Delete duplicates
     for i := high(newHist) downto result do
       newHist.deleteIndex(i);
 
-    // Insert remaining at the top
-    insert(newHist, self, 0);
+  // Insert remaining at the top
+  insert(newHist, self, 0);
 
-    // Removes excess (more than 2) history items that are already logged.
-    self.trimUsed();
-  end;
+  // Removes excess (more than 2) history items that are already logged.
+  self.trimUsed();
 end;
 
 procedure tGEHistoryArray.Update();
@@ -579,10 +579,10 @@ begin
   grandExchange.changeTab(False);
   wait(random(400,800));
 
-  writeln('New History Debug');
+  print('New History Debug');
   newHistory.debug();
 
-  writeln('Old History Debug');
+  print('Old History Debug');
   self.debug();
 
   self.match(newHistory);
@@ -591,7 +591,7 @@ begin
     for i := 0 to high(self) do
       self[i].firstPass := True;
 
-  writeln('Post-Match Debug');
+  print('Post-Match Debug');
   self.debug();
 end;
 
@@ -691,7 +691,7 @@ Adds a given tradeRecord to the recentItem list.
 procedure tScript.addTrade(constref trade : tTradeRecord);
 begin
   if trade.amount <= 0 then
-    self.print("ERROR: Cannot add trade of 0 amount")
+    print("ERROR: Cannot add trade of 0 amount")
   else
     self.recentItems.append(trade);
 
@@ -815,14 +815,14 @@ begin
   try
     RSClient.Image.Clear();
   except
-    Self.Print('Couldnt clear client');
+    Print('Couldnt clear client');
   end;
-  Self.Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades');
-  Self.Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue');
-  Self.Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp');
-  Self.Print('Blacklist for next time: ' + toStr(self.itemBlackList));
+  Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);
+  Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
+  Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
+  Print('Blacklist for next time: ' + toStr(self.itemBlackList), eDebugType.LIGHT);
 
-  Self.Print('You did great out there');
+  Print('You did great out there', eDebugType.LIGHT);
   self.itemMap.Free();
 end;
 

@@ -13,8 +13,7 @@ begin
     self.itemMap.Init(resString);
   except
     // Add debug of error
-    self.print("Failed to get item data, cannot load items", eDebugType.FATAL);
-    terminateScript();
+    print("Failed to get item data, cannot load items", eDebugType.FATAL);
   finally
     FreeHTTPClient(theClient);
   end;

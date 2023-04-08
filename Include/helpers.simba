@@ -16,9 +16,9 @@ function dateTimeStamp() : String;
     result := tDate + ' ' + tTime;
   end;
 
-procedure tScript.print(txt: String; level: eDebugType = eDebugType.DEV);
+procedure print(txt: String; level: eDebugType = eDebugType.DEV);
 begin
-  if self.debugLevel = eDebugType.NONE then exit();
+  if bot.debugLevel = eDebugType.NONE then exit();
 
   if level = eDebugType.FATAL then
   begin
@@ -26,7 +26,7 @@ begin
     terminateScript();
   end;
 
-  if (self.debugLevel = eDebugType.DEV) or ((self.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
+  if (bot.debugLevel = eDebugType.DEV) or ((bot.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
     writeln(dateTimeStamp(), ' [BOT]: ', txt);
 end;
 
