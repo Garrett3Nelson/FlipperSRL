@@ -11,9 +11,10 @@ CreateTradeRecord
 Used to convert integer values to tTradeRecord format for use in tracking
 *)
 
-function createTradeRecord(time, amount : Int32) : tTradeRecord;
+function createTradeRecord(time, itemID, amount : Int32) : tTradeRecord;
 begin
   result.amount := amount;
+  result.itemID := itemID;
   result.tradeFinished := time;
 end;
 
@@ -179,18 +180,18 @@ tGEOffer.updateTrades
 Removes any trade records that are over 4 hours old, to update the limit calculation.
 *)
 
-procedure tGEOffer.updateTrades();
-var
-  cutoff, lim, i : Integer;
-begin
-  cutoff := getSystemUnix() - (4*60*60); // 4 hour cutoff for trades
-
-  lim := high(self.previousTrades);
-
-  for i := lim downto 0 do
-    if self.previousTrades[i].tradeFinished < cutoff then // if it's been longer than 4 hours
-      self.previousTrades.deleteIndex(i);
-end;
+//procedure tGEOffer.updateTrades();
+//var
+//  cutoff, lim, i : Integer;
+//begin
+//  cutoff := getSystemUnix() - (4*60*60); // 4 hour cutoff for trades
+//
+//  lim := high(self.previousTrades);
+//
+//  for i := lim downto 0 do
+//    if self.previousTrades[i].tradeFinished < cutoff then // if it's been longer than 4 hours
+//      self.previousTrades.deleteIndex(i);
+//end;
 
 (*
 tGEOffer.addTrade
@@ -200,15 +201,15 @@ tGEOffer.addTrade
 Adds a trade record to the offer for tracking.
 *)
 
-procedure tGEOffer.addTrade(constref trade : tTradeRecord);
-begin
-  if trade.amount <= 0 then
-    //tScript.print("ERROR: Cannot add trade of 0 amount")
-  else
-    self.previousTrades.append(trade);
-
-  self.updateTrades(); // After appending, check to see if any old records can be removed
-end;
+//procedure tGEOffer.addTrade(constref trade : tTradeRecord);
+//begin
+//  if trade.amount <= 0 then
+//    writeln("ERROR: Cannot add trade of 0 amount")
+//  else
+//    self.previousTrades.append(trade);
+//
+//  self.updateTrades(); // After appending, check to see if any old records can be removed
+//end;
 
 (*
 tGEOffer.countTraded
@@ -219,16 +220,16 @@ Sums up the amount we've traded so far. The next partial offer will be calculate
 as limit - countTraded.
 *)
 
-function tGEOffer.countTraded() : Integer;
-var
-  i, lim : Integer;
-begin
-  self.updateTrades(); // Before we count, get rid of any old trades
-  lim := high(self.previousTrades);
-  for i := 0 to lim do
-    Result += self.previousTrades[i].amount
-
-end;
+//function tGEOffer.countTraded() : Integer;
+//var
+//  i, lim : Integer;
+//begin
+//  self.updateTrades(); // Before we count, get rid of any old trades
+//  lim := high(self.previousTrades);
+//  for i := 0 to lim do
+//    Result += self.previousTrades[i].amount
+//
+//end;
 
 (*
 tGESlot.debug
@@ -444,6 +445,9 @@ begin
     if self[i].isUsed then usedCount += 1;
   end;
 
+  // Still want to keep 5 items for matching later
+  if deleteTo < 5 then exit();
+
   for i := high(self) downto deleteTo do
     if self[i].isUsed or self[i].firstPass then self.deleteIndex(i);
 end;
@@ -479,6 +483,12 @@ function tGEHistoryArray.match(NewHist : tGEHistoryArray) : Integer;
 var
   i, lim, j, lim2, matches, lastMatch, matchLine : Integer;
 begin
+  if length(self) = 0 then
+  begin
+    self := NewHist;
+    exit(0);
+  end;
+
   lim := high(self);
   lim2 := high(NewHist);
 
@@ -496,12 +506,15 @@ begin
     begin
       // if match failed failed, matches = 0 again
       matches := 0;
-      result := 0;
+      result := -1;
       if lastMatch > lim then break();
     end;
   end;
 
-  if (result > 0) then
+  // If they matched from the first line, no update required
+  if result = 0 then exit();
+
+  if (result > -1) then
   begin
     // Delete duplicates
     for i := high(newHist) downto result do
@@ -512,8 +525,7 @@ begin
 
     // Removes excess (more than 2) history items that are already logged.
     self.trimUsed();
-  end else
-    self := newHist;
+  end;
 end;
 
 procedure tGEHistoryArray.Update();
@@ -648,7 +660,7 @@ procedure tScript.updateTrades();
 var
   cutoff, lim, i : Integer;
 begin
-  cutoff := getSystemUnix() - (4*60*60*1000); // 4 hour cutoff for trades
+  cutoff := getSystemUnix() - (4*60*60*1000); // 4 hour cutoff for trade limit
 
   lim := high(self.recentItems);
 
@@ -673,6 +685,17 @@ begin
     self.recentItems.append(trade);
 
   self.updateTrades(); // Update to remove any old trades
+end;
+
+function tScript.countTraded(itemID : Int32) : Integer;
+var
+  i, lim : Integer;
+begin
+  self.updateTrades(); // Before we count, get rid of any old trades
+  lim := high(self.recentItems);
+  for i := 0 to lim do
+    if self.recentItems[i].itemID = itemID then
+      Result += self.recentItems[i].amount
 end;
 
 
@@ -769,6 +792,7 @@ procedure tScript.setup(defaultWait : Int32 = 0);
 begin
   setLength(self.offers, 8);
   self.offers.reset(defaultWait);
+  self.logTimer.Init(ONE_SECOND * random(180, 240)); // 3 to 4 minutes to avoid 5 minute timeout
 
   setLength(self.history, 0);
   setLength(self.itemQ, 0);

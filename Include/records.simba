@@ -62,7 +62,8 @@ trade, amount is used to track the itemID instead of partial amount.
 *)
 
 type tTradeRecord = record
-  tradeFinished, amount : int64; // Amount is used for itemID in the account record to track recently traded items
+  tradeFinished : Int64;
+  amount, itemID : Int32;
 end;
 
   tTradeRecordArray = Array of tTradeRecord;
@@ -178,6 +179,7 @@ type
     itemBlackList : tStringArray;
     playerCash : Int32;
     coolDown : Boolean;
+    logTimer : tCountDown;
 
     // SRL Related Variables
     RSW : TRSWalker;

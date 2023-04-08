@@ -1,6 +1,6 @@
 function getSystemUnix() : Int64;
 begin
-  result := dateTimetoUnix(NowUTC(), True);
+  result := 1000 * dateTimetoUnix(NowUTC(), True); // Unix is in seconds by default, change to ms to match all SRL functions
 end;
 
 function dateTimeStamp() : String;
@@ -23,7 +23,7 @@ begin
   if level = eDebugType.FATAL then
   begin
     writeln(dateTimeStamp(), ' [FATAL]: ', txt);
-    exit;
+    terminateScript();
   end;
 
   if (self.debugLevel = eDebugType.DEV) or ((self.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
