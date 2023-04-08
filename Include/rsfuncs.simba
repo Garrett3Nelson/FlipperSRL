@@ -264,7 +264,7 @@ begin
   result := waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000);
 
   // Additional lag after the slot opens before the info loads
-  if result then waitUntil(SRL.CountColor(RS_ITEM_BORDER, GrandExchange.GetSetupOfferButton(ERSGESetupOfferButton.item).Bounds) > 0, 250, 4000);
+  if result then waitUntil(SRL.CountColor(RS_ITEM_BORDER, GrandExchange.GetOfferStatusButton(ERSGEOfferStatusButton.item).Bounds) > 0, 250, 4000);
 end;
 
 function TRSGrandExchange.CollectOffer(slotNumber : Int32 = -1) : Boolean;
