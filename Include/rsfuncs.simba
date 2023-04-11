@@ -64,6 +64,41 @@ begin
   result := self.GetProgress(self.GetOfferSlots()[slotNumber], 105);
 end;
 
+type
+  ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
+
+function TRSGrandExchange.GetStatus(slotNumber : Int32) : ERSGEOfferStatus;
+var Status : TRSGEOfferStatus;
+begin
+  Status := self.GetofferStatus(slotNumber);
+
+  if Status.OfferType = ERSGEOfferType.EMPTY then exit(ERSGEOfferStatus.EMPTY);
+  if Status.OfferType = ERSGEOfferType.UNKNOWN then exit(ERSGEOfferStatus.UNKNOWN);
+
+  if (Status.Progress = -1) then exit(ERSGEOfferStatus.ABORTED);
+  if (Status.Progress = 100) then exit(ERSGEOfferStatus.COMPLETE);
+
+  result := ERSGEOfferStatus.ACTIVE;
+end;
+
+// Get the status from the OFFER_STATUS interface
+function TRSGrandExchange.GetStatus() : ERSGEOfferStatus ; overload;
+begin
+  if (self.GetCurrentInterface() <> ERSGEInterface.OFFER_STATUS) then
+  begin
+    writeln('WARNING: You must specify a slot number OR be on the OFFER_STATUS screen');
+    exit(ERSGEOfferStatus.UNKNOWN);
+  end;
+
+  if SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0 then
+    exit(ERSGEOfferStatus.ABORTED);
+
+  if SRL.CountColor(24320, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0 then
+    exit(ERSGEOfferStatus.COMPLETE);
+
+  result := ERSGEOfferStatus.ACTIVE;
+end;
+
 function TRSGrandExchange._EnterQuantity(quantity : Int32) : Boolean;
 var
   button : ERSGESetupOfferButton;
@@ -205,6 +240,21 @@ begin
   end;
 end;
 
+function TRSInventory.CountItems(Items: TRSItemArray): Int32;
+var slots : tIntegerArray;
+begin
+  self.FindItems(Items, Slots);
+  result := Length(Slots);
+end;
+
+function TRSInventory.CountItems(Item: TRSItem): Int32; Overload;
+begin
+  if (ItemFinder.ItemNames.IndexOfName('noted ' + Item) > -1) then
+    result := self.CountItems([Item, 'noted ' + Item])
+  else
+    result := self.CountItem(Item);
+end;
+
 // Enter -1 for ALL
 function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean;
 var item : String;
@@ -212,10 +262,10 @@ begin
   if not self.IsOpen() then Exit(False);
 
   item := itemName;
-  if not Inventory.ContainsItem(item) then
-    if Inventory.ContainsItem('noted ' + itemName) then
-      item := 'noted ' + itemName
-    else
+  if (ItemFinder.ItemNames.IndexOfName('noted ' + itemName) > -1) and Inventory.ContainsItem('noted ' + itemName) then
+    item := 'noted ' + itemName
+  else
+    if not Inventory.ContainsItem(item) then
     begin
       writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
       exit(False);
@@ -242,18 +292,15 @@ begin
 
   waitUntil((self.GetItemQuantity > 0), 250, 2000);
 
-  if Self._EnterQuantity(quantity) then
-    Self._EnterPrice(price);
+  if (Inventory.CountItems(ItemName) <> 1) and ((quantity = -1) or (self.GetItemQuantity < quantity))then
+    Self._EnterQuantity(quantity);
+
+  Self._EnterPrice(price);
 
   wait(random(400,800));
 
   if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
     result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000);
-end;
-
-function TRSGrandExchange.GetCollectionBoxes() : tBoxArray;
-begin
-  result := grid(2, 1, 36, 33, point(15,0), point(self.X2 - 105, self.Y2 - 52));
 end;
 
 function TRSGrandExchange.OpenActiveOffer(slotNumber: Int32) : Boolean;
@@ -267,6 +314,19 @@ begin
   if result then waitUntil(SRL.CountColor(RS_ITEM_BORDER, GrandExchange.GetOfferStatusButton(ERSGEOfferStatusButton.item).Bounds) > 0, 250, 4000);
 end;
 
+function TRSGrandExchange.GetCollectionBoxes() : tBoxArray;
+begin
+  result := grid(2, 1, 36, 33, point(15,0), point(self.X2 - 105, self.Y2 - 52));
+end;
+
+function TRSGrandExchange.CountCollectionSlots() : Int32;
+var slot : Int32;
+begin
+  result := 0;
+  for slot := 0 to 1 do
+    if SRL.CountColor(RS_ITEM_BORDER, self.GetCollectionBoxes()[slot]) then Result += 1;
+end;
+
 function TRSGrandExchange.CollectOffer(slotNumber : Int32 = -1) : Boolean;
 var
   cBoxes : TBoxArray;
@@ -277,14 +337,16 @@ begin
   begin
     if not (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then
     begin
-      writeln('Slot was specified, trying to open');
+      //writeln('Slot was specified, trying to open');
+
       if not self.OpenActiveOffer(slotNumber) then exit(False);
     end;
 
   // Interface buttons can't locate the collection boxes easily within this interface
   // TBD if grids are the best option
     cBoxes := self.GetCollectionBoxes();
-    writeln('Trying to collect from collection boxes');
+
+    //writeln('Trying to collect from collection boxes');
     for collectionBox in cBoxes do
       if SRL.CountColor(RS_ITEM_BORDER, CollectionBox) > 0 then
       begin
@@ -294,12 +356,12 @@ begin
       end;
   end else
   begin
-    writeln('At main screen, collect button visible = ', Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible);
+    //writeln('At main screen, collect button visible = ', Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible);
     Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click();
   end;
 
   result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
-  writeln('Collection Result: ', result);
+  //writeln('Collection Result: ', result);
 end;
 
 function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
@@ -337,16 +399,18 @@ function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
     end;
   end;
 
+var itemCount : Int32;
 begin
   if (self.GetCurrentInterface() <> ERSGEInterface.OFFER_STATUS) then
     if not self.OpenActiveOffer(slotNumber) then exit(False);
 
   if SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0 then exit(True);
 
+  itemCount := self.CountCollectionSlots();
   Mouse.Click(FindAbortButton().Middle().Random(1,4), MOUSE_LEFT);
   Result := waitUntil(SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0, 200, 2000);
 
-  if Result then waitUntil((SRL.CountColor(RS_ITEM_BORDER, self.GetCollectionBoxes()[1]) > 0), 250, 2000);
+  if Result then waitUntil((self.CountCollectionSlots() > itemCount), 250, 2000);
 end;
 
 function TRSGrandExchange.ReturnToMain() : Boolean;

@@ -135,7 +135,7 @@ end;
 
 function tGEItem.stringify() : String;
 begin
-  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(round(self.margin(), 3)) + ", Tax: " + toStr(self.tax) + ", Real Sell: " + toStr(self.RealSell) + ", Real Margin: " + toStr(self.RealSell - min(self.buy, self.sell)) + ", Limit: " + toStr(self.limit);
+  result := self.name + ": ID = " + toStr(self.itemID) + ", Market = " + toStr(self.market) + ", Buy = " + toStr(self.buy) + ", Sell = " +toStr(self.sell) + ', Margin = ' + toStr(round(self.margin(), 3)) + ", Tax: " + toStr(self.tax) + ", Limit: " + toStr(self.limit);
 end;
 
 (*
@@ -458,6 +458,17 @@ begin
     if (not self[i].isUsed) and (not self[i].firstPass) then self[i].firstPass := True;
 end;
 
+function tGEHistory.equals(cmp : tGEHistory) : Boolean;
+begin
+  result := True;
+
+  if not smartStringMatch(self.Item, cmp.Item, 2) then exit(False);
+  if self.OfferType <> cmp.OfferType then exit(False);
+  if self.Quantity <> cmp.Quantity then exit(False);
+  if self.TotalPrice <> cmp.TotalPrice then exit(False);
+  if self.PricePerItem <> cmp.PricePerItem then exit(False);
+end;
+
 function tGEHistoryArray.matchLine(constref history : tGEHistory; startLine : Integer = 0) : Integer;
 var
   i, lim : Integer;
@@ -466,15 +477,12 @@ begin
 
   lim := high(self);
   for i := startLine to lim do
-  if (stringMatch(self[i].Item, history.Item) > 0.9) then
-    if (self[i].OfferType = history.OfferType) then
-      if (self[i].Quantity = history.Quantity) then
-        if (self[i].TotalPrice = history.TotalPrice) or ((self[i].PricePerItem = history.PricePerItem) and (history.PricePerItem > 0)) then
-        begin
-          //writeln('Matched ' + history.Item + ' with ' + self[i].Item);
-          //writeln('Matched on line ', i);
-          exit(i);
-        end;
+    if self[i].equals(history) then
+    begin
+      //writeln('Matched ' + history.Item + ' with ' + self[i].Item);
+      //writeln('Matched on line ', i);
+      exit(i);
+    end;
 end;
 
 (*

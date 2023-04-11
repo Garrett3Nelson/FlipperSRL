@@ -3,37 +3,24 @@ begin
   result := 1000 * dateTimetoUnix(NowUTC(), True); // Unix is in seconds by default, change to ms to match all SRL functions
 end;
 
-function dateTimeStamp() : String;
-  var
-    Hour, Mins, Sec, MSec: Word;
-    Day, Month, Year : Uint16;
-    tDate, tTime : String;
-  begin
-    DecodeTime(Now(), Hour, Mins, Sec, MSec);
-    DecodeDate(Date(), Year, Month, Day);
-    tDate := toStr(Year) + '-' + Padz(toStr(Month), 2) + '-' + Padz(toStr(Day), 2);
-    tTime := (Padz(IntToStr(Hour), 2) + '.' + Padz(IntToStr(Mins), 2) + '.' + Padz(IntToStr(Sec), 2));
-    result := tDate + ' ' + tTime;
-  end;
-
 procedure print(txt: String; level: eDebugType = eDebugType.DEV);
 begin
   if bot.debugLevel = eDebugType.NONE then exit();
 
   if level = eDebugType.FATAL then
   begin
-    writeln(dateTimeStamp(), ' [FATAL]: ', txt);
+    writeln(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()), ' [FATAL]: ', txt);
     terminateScript();
   end;
 
   if (bot.debugLevel = eDebugType.DEV) or ((bot.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
-    writeln(dateTimeStamp(), ' [BOT]: ', txt);
+    writeln(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()), ' [BOT]: ', txt);
 end;
 
 procedure takeScreenshot(fileName: string);
 begin
   CreateDirectory('Screenshots/Flipper');
-  saveScreenshot('Screenshots/Flipper/' + dateTimeStamp() + ' ' + fileName);
+  saveScreenshot('Screenshots/Flipper/' + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' ' + fileName);
 end;
 
 function smartStringMatch(source, target : String; diff : Integer) : Boolean;
