@@ -245,10 +245,14 @@ begin
   print(toStr(self));
 end;
 
-function tGEOffer.stringify(collected : Boolean = True) : String;
+function tGEOffer.stringify(collected : Boolean = True; full: Boolean = False) : String;
 begin
-  result := 'Offer: ' + toStr(self.globalTrade) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
-  if collected then result += '. Collected: ' + toStr(self.collected) +'. History Updated: ' + toStr(self.HistUpdated);
+  if full then
+    result := 'Offer: ' + toStr(self.globalTrade) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue) + '. Profit: ' + toStr(self.revenue-self.spent) + '. Time: ' + toStr(round((getSystemUnix() - self.startTime)/1000)) + 's'
+  else
+    result := 'Offer: ' + toStr(self.globalTrade) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
+  if collected then
+    result += '. Collected: ' + toStr(self.collected) +'. History Updated: ' + toStr(self.HistUpdated);
 
 end;
 
@@ -476,7 +480,7 @@ begin
   result := -1;
 
   lim := high(self);
-  for i := startLine to lim do
+  for i := max(0, startLine) to lim do
     if self[i].equals(history) then
     begin
       //writeln('Matched ' + history.Item + ' with ' + self[i].Item);
@@ -503,29 +507,8 @@ begin
     exit(0);
   end;
 
-  result := -1;
-
-  lim := high(self);
-  lim2 := high(NewHist);
-
-  for j := 0 to lim do
-  begin
-    matchLine := NewHist.matchLine(self[j], lastMatch);
-    if matchLine >= 0 then
-    begin
-      lastMatch := matchLine+1;
-      if result = -1 then result := matchLine;
-      matches += 1;
-      if (matches = 2) or (lastMatch > min(lim, lim2)) then
-        break();
-    end else
-    begin
-      // if match failed failed, matches = 0 again
-      matches := 0;
-      result := -1;
-      if lastMatch > min(lim, lim2) then break();
-    end;
-  end;
+  lastMatch := self.matchLine(newHist[high(NewHist)]);
+  result := high(newHist) - lastMatch;
 
   // If they matched from the first line, no update required
   if result = 0 then exit();
@@ -818,13 +801,21 @@ begin
   setLength(self.recentItems, 0);
 end;
 
+procedure tGEOffer.saveTrade();
+begin
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.stringify(False, True) + STR_NEW_LINE, True);
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.item.stringify() + STR_NEW_LINE, True);
+end;
+
 procedure TScript.Free();
 begin
   try
     RSClient.Image.Clear();
+    WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
   except
-    Print('Couldnt clear client');
+    Print('Couldnt Free Safely');
   end;
+
   Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);
   Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
   Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
