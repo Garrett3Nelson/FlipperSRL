@@ -232,7 +232,12 @@ begin
     end;
 
     if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
-      result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.BUY, 250, 4000);
+      result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.BUY, 250, 4000)
+    else
+    begin
+      writeln('TRSGrandExchange.createBuyOffer: Failed to click confirm button');
+      exit(False);
+    end;
   end else
   begin
     writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
@@ -280,7 +285,11 @@ begin
       exit(False);
     end;
 
-    waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000);
+    if not waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000) then
+    begin
+      writeln('TRSGrandExchange.createSellOffer: Failed to open interface by clicking button');
+      exit(False);
+    end;
   end else
     slotNumber := self.NextEmptySlot(); // For checking result at the end only
 
@@ -290,7 +299,11 @@ begin
     exit(False);
   end;
 
-  waitUntil((self.GetItemQuantity > 0), 250, 2000);
+  if not waitUntil((self.GetItemQuantity > 0), 250, 2000) then
+  begin
+    writeln('TRSGrandExchange.createSellOffer: Offer quantity did not show up');
+    exit(False);
+  end;
 
   if (Inventory.CountItems(ItemName) <> 1) and ((quantity = -1) or (self.GetItemQuantity < quantity))then
     Self._EnterQuantity(quantity);
@@ -327,41 +340,58 @@ begin
     if SRL.CountColor(RS_ITEM_BORDER, self.GetCollectionBoxes()[slot]) then Result += 1;
 end;
 
-function TRSGrandExchange.CollectOffer(slotNumber : Int32 = -1) : Boolean;
+function TRSGrandExchange.CollectOffer() : Boolean;
+var tries : Int32;
+begin
+  if not (self.GetCurrentInterface() = ERSGEInterface.OVERVIEW) then
+  begin
+    writeln('CollectOffer: You must specify a slot number or be at the overview screen');
+    exit(False);
+  end;
+
+  for tries := 0 to 2 do
+  begin
+    if not Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible() then exit(True);
+
+    Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click();
+
+    result := waitUntil(not Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible(), 250, 4000);
+    if result then exit();
+  end;
+end;
+
+function TRSGrandExchange.CollectOffer(slotNumber : Int32) : Boolean; overload;
 var
   cBoxes : TBoxArray;
   collectionBox : tBox;
 begin
-
-  if (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) or (slotNumber > -1) then
+  if (slotNumber < 0) or (slotNumber > 7) then
   begin
-    if not (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then
-    begin
-      //writeln('Slot was specified, trying to open');
+    writeln('CollectOffer: You must specify a slot between 0 and 7');
+    exit(False);
+  end;
 
-      if not self.OpenActiveOffer(slotNumber) then exit(False);
-    end;
+  if not (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then
+  begin
+    //writeln('Slot was specified, trying to open');
+
+    if not self.OpenActiveOffer(slotNumber) then exit(False);
+  end;
 
   // Interface buttons can't locate the collection boxes easily within this interface
   // TBD if grids are the best option
-    cBoxes := self.GetCollectionBoxes();
+  cBoxes := self.GetCollectionBoxes();
 
-    //writeln('Trying to collect from collection boxes');
-    for collectionBox in cBoxes do
-      if SRL.CountColor(RS_ITEM_BORDER, CollectionBox) > 0 then
-      begin
-        Mouse.Click(collectionBox, MOUSE_LEFT);
-        waitUntil((SRL.CountColor(RS_ITEM_BORDER, collectionBox) = 0), 200, 3000);
-        // May need a failsafe to confirm it's collected
-      end;
-  end else
-  begin
-    //writeln('At main screen, collect button visible = ', Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Visible);
-    Self.GetOverviewButton(ERSGEOverviewButton.COLLECT).Click();
-  end;
+  //writeln('Trying to collect from collection boxes');
+  for collectionBox in cBoxes do
+    if SRL.CountColor(RS_ITEM_BORDER, CollectionBox) > 0 then
+    begin
+      Mouse.Click(collectionBox, MOUSE_LEFT);
+      waitUntil((SRL.CountColor(RS_ITEM_BORDER, collectionBox) = 0), 200, 3000);
+      // May need a failsafe to confirm it's collected
+    end;
 
   result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
-  //writeln('Collection Result: ', result);
 end;
 
 function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;

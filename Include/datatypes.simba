@@ -11,11 +11,25 @@ CreateTradeRecord
 Used to convert integer values to tTradeRecord format for use in tracking
 *)
 
-function createTradeRecord(time, itemID, amount : Int32) : tTradeRecord;
+function tGEOffer.createTradeRecord(history : tGEHistory) : tTradeRecord;
 begin
-  result.amount := amount;
-  result.itemID := itemID;
-  result.tradeFinished := time;
+  with Result do
+  begin
+    offerID := self.globalID;
+    timeStampUnix := getSystemUnix();
+    timeStamp := FormatDateTime('yyyy-mm-dd hh:mm:ss', Now());
+    itemName := self.item.name;
+    itemID := self.item.itemID;
+    OfferType := history.OfferType;
+    Quantity := history.Quantity;
+    PricePerItem := history.PricePerItem;
+    TotalPrice := history.TotalPrice;
+  end;
+end;
+
+function tTradeRecord.stringify() : String;
+begin
+  result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ', Recorded at ' + toStr(self.TimeStamp);
 end;
 
 (*
@@ -29,6 +43,21 @@ Appends a trade record to the end of the array
 procedure tTradeRecordArray.append(constref trade : tTradeRecord);
 begin
   insert(trade, self, length(self));
+end;
+
+procedure tTradeRecordArray.updatePriceCheck(offer : tGEOffer);
+var i, matches : Int32;
+begin
+  for i := high(self) downto 0 do
+  begin
+    if (self[i].OfferID = 0) and (self[i].itemID = offer.item.itemID) then
+    begin
+      self[i].OfferID := offer.globalID;
+      matches += 1;
+    end;
+
+    if matches = 2 then exit;
+  end;
 end;
 
 (*
@@ -248,9 +277,9 @@ end;
 function tGEOffer.stringify(collected : Boolean = True; full: Boolean = False) : String;
 begin
   if full then
-    result := 'Offer: ' + toStr(self.globalTrade) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue) + '. Profit: ' + toStr(self.revenue-self.spent) + '. Time: ' + toStr(round((getSystemUnix() - self.startTime)/1000)) + 's'
+    result := 'Offer: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue) + '. Profit: ' + toStr(self.revenue-self.spent) + '. Time: ' + toStr(round((getSystemUnix() - self.startTime)/1000)) + 's'
   else
-    result := 'Offer: ' + toStr(self.globalTrade) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
+    result := 'Offer: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
   if collected then
     result += '. Collected: ' + toStr(self.collected) +'. History Updated: ' + toStr(self.HistUpdated);
 
@@ -324,7 +353,7 @@ function tGEOfferArray.countActive() : Integer;
 var i : Integer;
 begin
   for i := 0 to high(self) do
-    if ((self[i].globalTrade > 0) and (self[i].status <> 'empty')) then
+    if ((self[i].globalID > 0) and (self[i].status <> 'empty')) then
       result += 1;
 end;
 
@@ -342,7 +371,7 @@ var
   i : Integer;
 begin
   for i := 0 to high(self) do
-    if self[i].slot.Progress = 100 then result.append(self[i].slotNumber);
+    if (self[i].slot.Progress = 100) then result.append(self[i].slotNumber);
 end;
 
 
@@ -499,7 +528,7 @@ index where the match was found. Keeps the old array status (isUsed).
 *)
 function tGEHistoryArray.match(NewHist : tGEHistoryArray) : Integer;
 var
-  i, lim, j, lim2, matches, lastMatch, matchLine : Integer;
+  i, lastMatch : Integer;
 begin
   if length(self) = 0 then
   begin
@@ -562,7 +591,16 @@ begin
   firstPass := length(self) = 0;
 
   setLength(newHistory, 0);
+
   newHistory := CastHist(GrandExchange.GetHistory());
+  if length(newHistory) = 0 then
+  begin
+    GrandExchange.ChangeTab();
+
+    newHistory := CastHist(GrandExchange.GetHistory());
+    if length(newHistory) = 0 then
+      print('History.Update: Failed to read history', eDebugType.FATAL);
+  end;
 
   if length(newHistory) > 5 then
     if newHistory[5].OfferType = '' then newHistory.deleteIndex(5);
@@ -651,27 +689,6 @@ begin
 end;
 
 (*
-tScript.updateTrades
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tScript.updateTrades();
-Removes any items from the recentItem array that were traded more than 4 hours ago.
-*)
-
-procedure tScript.updateTrades();
-var
-  cutoff, lim, i : Integer;
-begin
-  cutoff := getSystemUnix() - (4*60*60*1000); // 4 hour cutoff for trade limit
-
-  lim := high(self.recentItems);
-
-  for i := lim downto 0 do
-    if self.recentItems[i].tradeFinished < cutoff then // if it's been longer than 4 hours
-      self.recentItems.deleteIndex(i);
-end;
-
-(*
 tScript.addTrade
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. pascal::
@@ -679,25 +696,31 @@ tScript.addTrade
 Adds a given tradeRecord to the recentItem list.
 *)
 
-procedure tScript.addTrade(constref trade : tTradeRecord);
+procedure tScript.addTrade(offerIndex, historyIndex : Int32);
+var trade : tTradeRecord;
 begin
-  if trade.amount <= 0 then
+  trade := self.offers[OfferIndex].createTradeRecord(self.history[historyIndex]);
+
+  if trade.Quantity <= 0 then
     print("ERROR: Cannot add trade of 0 amount")
   else
-    self.recentItems.append(trade);
-
-  self.updateTrades(); // Update to remove any old trades
+    self.tradeLog.append(trade);
 end;
 
 function tScript.countTraded(itemID : Int32) : Integer;
 var
   i, lim : Integer;
 begin
-  self.updateTrades(); // Before we count, get rid of any old trades
-  lim := high(self.recentItems);
-  for i := 0 to lim do
-    if self.recentItems[i].itemID = itemID then
-      Result += self.recentItems[i].amount
+  lim := high(self.tradeLog);
+  for i := lim downto 0 do
+  begin
+    // Working from newest (last) to oldest (first)
+    // Can break the first time it's over 4hrs because they're entered chronologically
+    if (getSystemUnix - self.tradeLog[i].timeStampUnix) > (4 * 3600) then break();
+
+    if (self.tradeLog[i].OfferType = 'Buy') and (self.tradeLog[i].itemID = itemID) then
+      Result += self.tradeLog[i].Quantity;
+  end;
 end;
 
 
@@ -754,7 +777,7 @@ resets the item inside the offer.
 
 procedure tGEOffer.reset(defaultWait: Int32);
 begin
-  self.globalTrade := 0;
+  self.globalID := -1;
   self.purchased := 0;
   self.toTrade := 0;
   self.buyOverride := False;
@@ -764,7 +787,6 @@ begin
   self.startTime := 0;
   self.lastUpdate := 0;
   self.slotNumber := -1;
-  self.previousTrades := [];
   self.waitTime := defaultWait;
   self.status := "empty";
   self.collected := False;
@@ -798,13 +820,34 @@ begin
 
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
-  setLength(self.recentItems, 0);
+  setLength(self.tradeLog, 0);
 end;
 
-procedure tGEOffer.saveTrade();
+procedure tScript.init();
+var f : Int32;
 begin
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.stringify(False, True) + STR_NEW_LINE, True);
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.item.stringify() + STR_NEW_LINE, True);
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'TradeLogs') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'TradeLogs');
+
+  if not fileExists({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt') then
+  begin
+    f := createFile({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt');
+    closeFile(f);
+  end;
+
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
+end;
+
+procedure TScript.saveTrade(offerIndex : Int32);
+var i : Int32;
+begin
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].stringify(False, True) + STR_NEW_LINE, True);
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].item.stringify() + STR_NEW_LINE, True);
+
+  if self.offers[OfferIndex].globalID > -1 then
+    for i := 0 to high(self.tradeLog) do
+      if self.tradeLog[i].offerID = self.offers[OfferIndex].globalID then
+        WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', '    ' + self.tradeLog[i].stringify() + STR_NEW_LINE, True);
 end;
 
 procedure TScript.Free();

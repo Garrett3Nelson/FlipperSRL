@@ -50,25 +50,6 @@ end;
   tGEItemFancyArray = Array of tGEItemFancy;
 
 (*
-type tTradeRecord
-~~~~~~~~~~~~~~~~~~
-.. pascal::
-   tTradeRecord = record
-     tradeFinished : Int32; // The time the trade finished
-     amount : Int32; // The amount of items that we traded at that time
-   end;
-Used to track the partial trades in a current offer. In the case of a completed
-trade, amount is used to track the itemID instead of partial amount.
-*)
-
-type tTradeRecord = record
-  tradeFinished : Int64;
-  amount, itemID : Int32;
-end;
-
-  tTradeRecordArray = Array of tTradeRecord;
-
-(*
 type tGESlot
 ~~~~~~~~~~~~~~~~~~
 .. pascal::
@@ -111,11 +92,10 @@ Tracks all the information for a given offer.
 *)
 
 type tGEOffer = record
-  globalTrade, purchased, toTrade, spent, revenue, waitTime, slotNumber : Int32;
+  globalID, purchased, toTrade, spent, revenue, waitTime, slotNumber : Int32;
   startTime, lastUpdate : Int64;
   buyOverride, abandoning, collected, histUpdated : Boolean;
   status : String;
-  previousTrades : tTradeRecordArray;
   item : tGEItem;
   slot : tGESlot;
 end;
@@ -137,6 +117,26 @@ type tGEHistory = record(TRSGEHistoryItem)
 end;
 
   tGEHistoryArray = Array of tGEHistory;
+
+(*
+type tTradeRecord
+~~~~~~~~~~~~~~~~~~
+.. pascal::
+   tTradeRecord = record
+     tradeFinished : Int32; // The time the trade finished
+     amount : Int32; // The amount of items that we traded at that time
+   end;
+Used to track the partial trades in a current offer. In the case of a completed
+trade, amount is used to track the itemID instead of partial amount.
+*)
+
+type tTradeRecord = record(TGEHistory)
+  timeStampUnix : Int64;
+  timeStamp, itemName : String;
+  itemID, offerID : Int32;
+end;
+
+  tTradeRecordArray = Array of tTradeRecord;
 
 (*
 type tScript
@@ -165,6 +165,7 @@ type
 
     // Insert progress report variables here
     completeOffers : tGEOfferArray;
+    tradeLog : tTradeRecordArray;
     totalRevenue : Int32;
     totalSpend : Int32;
 
@@ -173,13 +174,13 @@ type
     offers : tGEOfferArray;
     history : tGEHistoryArray;
     itemQ : TGEItemArray;
-    recentItems : tTradeRecordArray;
     itemMap : tJSONArray;
     itemList : tStringArray;
     itemBlackList : tStringArray;
     playerCash : Int32;
     coolDown : Boolean;
     logTimer : tCountDown;
+    globalID : Int32;
 
     // SRL Related Variables
     RSW : TRSWalker;
