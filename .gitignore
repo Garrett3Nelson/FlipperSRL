@@ -3,3 +3,4 @@ devTool.simba
 *.xcf
 FlipperSRL.simba
 /Include/TradeLogs/
+/Include/Screenshots/

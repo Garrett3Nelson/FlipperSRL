@@ -19,8 +19,8 @@ end;
 
 procedure takeScreenshot(fileName: string);
 begin
-  CreateDirectory('Screenshots/Flipper');
-  saveScreenshot('Screenshots/Flipper/' + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' ' + fileName);
+  CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator);
+  saveScreenshot({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator + FormatDateTime('yymmdd_hhmmss', Now()) + '_' + fileName);
 end;
 
 function smartStringMatch(source, target : String; diff : Integer) : Boolean;

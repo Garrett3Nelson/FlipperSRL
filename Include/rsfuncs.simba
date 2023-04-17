@@ -189,6 +189,7 @@ begin
 end;
 
 function TRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1) : Boolean;
+var backupButton : tBox;
 begin
   if not self.IsOpen() then Exit(False);
 
@@ -203,8 +204,29 @@ begin
 
   if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Click() then
   begin
-    writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
-    exit(False);
+    if self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.EMPTY then // If the offer is empty but the button couldn't be found (hover covering the button?)
+    begin
+      // The manual way of defining the buy button
+      backupButton := Self.GetOfferSlots()[slotNumber];
+      backupButton.X1 += 7;
+      backupButton.Y1 += 44;
+      backupButton.X2 -= 62;
+      backupButton.Y2 -= 21;
+
+      Mouse.Click(backupButton, MOUSE_LEFT);
+
+      if not waitUntil(self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS, 250,3000) then
+      begin
+        writeln('TRSGrandExchange.createBuyOffer: Backup Button Failed');
+        //takeScreenshot('backupbutton.png');
+        exit(False);
+      end;
+    end else
+    begin
+      writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
+      //takeScreenshot('buybutton.png');
+      exit(False);
+    end;
   end;
 
   WaitUntil(Self.IsSearchOpen(), 500, 2500);
@@ -232,7 +254,7 @@ begin
     end;
 
     if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
-      result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.BUY, 250, 4000)
+      result := waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE, 250, 4000)
     else
     begin
       writeln('TRSGrandExchange.createBuyOffer: Failed to click confirm button');

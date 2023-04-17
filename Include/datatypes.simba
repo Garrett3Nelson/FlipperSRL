@@ -29,7 +29,7 @@ end;
 
 function tTradeRecord.stringify() : String;
 begin
-  result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ', Recorded at ' + toStr(self.TimeStamp);
+  result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ' (' + toStr(self.PricePerItem) +' ea), Recorded at ' + toStr(self.TimeStamp);
 end;
 
 (*
@@ -50,7 +50,7 @@ var i, matches : Int32;
 begin
   for i := high(self) downto 0 do
   begin
-    if (self[i].OfferID = 0) and (self[i].itemID = offer.item.itemID) then
+    if (self[i].OfferID = -1) and (self[i].itemID = offer.item.itemID) then
     begin
       self[i].OfferID := offer.globalID;
       matches += 1;
@@ -716,7 +716,7 @@ begin
   begin
     // Working from newest (last) to oldest (first)
     // Can break the first time it's over 4hrs because they're entered chronologically
-    if (getSystemUnix - self.tradeLog[i].timeStampUnix) > (4 * 3600) then break();
+    if (getSystemUnix - self.tradeLog[i].timeStampUnix) > (4 * ONE_HOUR) then break();
 
     if (self.tradeLog[i].OfferType = 'Buy') and (self.tradeLog[i].itemID = itemID) then
       Result += self.tradeLog[i].Quantity;
