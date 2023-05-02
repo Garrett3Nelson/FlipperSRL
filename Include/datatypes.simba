@@ -502,19 +502,50 @@ begin
   if self.PricePerItem <> cmp.PricePerItem then exit(False);
 end;
 
-function tGEHistoryArray.matchLine(constref history : tGEHistory; startLine : Integer = 0) : Integer;
+function tGEHistoryArray.matchLine(constref history : tGEHistory; startLine, endLine : Integer) : Integer;
 var
   i, lim : Integer;
 begin
   result := -1;
 
   lim := high(self);
-  for i := max(0, startLine) to lim do
+  for i := max(0, startLine) to min(lim, endLine) do
     if self[i].equals(history) then
     begin
       //writeln('Matched ' + history.Item + ' with ' + self[i].Item);
       //writeln('Matched on line ', i);
       exit(i);
+    end;
+end;
+
+function tGEHistoryArray.matches(cmp: tGEHistoryArray): Boolean;
+var
+  i : Int32;
+  smaller, bigger: tGEHistoryArray;
+begin
+  if length(self) >= length(cmp) then
+  begin
+    bigger := copy(self, 0, length(self));
+    smaller := copy(cmp, 0, length(cmp));
+  end else
+  begin
+    bigger := copy(cmp, 0, length(cmp));
+    smaller := copy(self, 0, length(self));
+  end;
+
+  //writeln('Bigger');
+  //bigger.debug();
+  //writeln('Samller');
+  //smaller.debug();
+
+  // The line must match the top of oldHist or else it's not a match ever
+
+  result := True;
+  for i := 0 to high(smaller) do
+    if not bigger[i].equals(smaller[i]) then
+    begin
+      //writeln(bigger[i].Item, ' does not equal ', smaller[i].Item);
+      exit(False);
     end;
 end;
 
@@ -528,16 +559,31 @@ index where the match was found. Keeps the old array status (isUsed).
 *)
 function tGEHistoryArray.match(NewHist : tGEHistoryArray) : Integer;
 var
-  i, lastMatch : Integer;
+  testHist : tGEHistoryArray;
+  i : Integer;
 begin
+  result := -1;
   if length(self) = 0 then
   begin
     self := NewHist;
     exit(0);
   end;
 
-  lastMatch := self.matchLine(newHist[high(NewHist)]);
-  result := high(newHist) - lastMatch;
+  for i := 0 to high(newHist) do
+  begin
+    testHist := copy(newHist, i, (length(NewHist) - i));
+    //writeln('Test ', i);
+    //testHist.debug();
+    if self.matches(testHist) then
+    begin
+      //writeln('Found match of length ', length(testHist));
+      result := length(newHist) - length(testHist);
+      break;
+    end;
+  end;
+
+  //lastMatch := self.matchLine(newHist[high(NewHist)]);
+  //result := high(newHist) - lastMatch;
 
   // If they matched from the first line, no update required
   if result = 0 then exit();
@@ -816,7 +862,7 @@ procedure tScript.setup(defaultWait : Int32 = 0);
 begin
   setLength(self.offers, 8);
   self.offers.reset(defaultWait);
-  self.logTimer.Init(ONE_SECOND * random(180, 240)); // 3 to 4 minutes to avoid 5 minute timeout
+  self.logTimer.Init(ONE_SECOND * random(150, 200));
 
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
@@ -861,6 +907,8 @@ begin
 
   Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);
   Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
+  Print('Start Cash: ' + toStr(self.starterCash) + ', Current Cash: ' + toStr(self.playerCash));
+  Print('Cash change of: ' + toStr(self.playerCash - self.starterCash));
   Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
   Print('Blacklist for next time: ' + toStr(self.itemBlackList), eDebugType.LIGHT);
 

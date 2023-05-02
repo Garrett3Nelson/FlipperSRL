@@ -168,6 +168,7 @@ type
     tradeLog : tTradeRecordArray;
     totalRevenue : Int32;
     totalSpend : Int32;
+    starterCash : Int32;
 
 
     // Active Script Variables
