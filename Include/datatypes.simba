@@ -884,6 +884,14 @@ begin
   WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
 end;
 
+procedure tScript.initRecorder();
+begin
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Video') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Video');
+
+  Recorder.Start(GetSimbaTargetWindow(), 30, {$MACRO CURRENT_DIRECTORY} + 'Video')
+end;
+
 procedure TScript.saveTrade(offerIndex : Int32);
 var i : Int32;
 begin

@@ -119,7 +119,7 @@ begin
   if self.GetSetupOfferButton(button).Click() then
     if button = ERSGESetupOfferButton.QUANTITY_ENTER then
     begin
-      if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'How many do you wish to buy?', 250, 4000) then
+      if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorFilter.Create([$000000]), RS_FONT_BOLD_12) = 'How many do you wish to buy?', 250, 4000) then
       begin
         wait(random(400,800));
         KeyBoard.Send(toStr(quantity), VK_ENTER);
@@ -178,7 +178,7 @@ begin
       wait(random(200,400));
       if button = ERSGESetupOfferButton.PRICE_ENTER then
       begin
-        if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorRule.Create([$000000]), RS_FONT_BOLD_12) = 'Set a price for each item:', 250, 4000) then
+        if waitUntil(OCR.Recognize(Chat.Bounds,  TOCRColorFilter.Create([$000000]), RS_FONT_BOLD_12) = 'Set a price for each item:', 250, 4000) then
         begin
           wait(random(400,800));
           KeyBoard.Send(toStr(price), VK_ENTER);
@@ -276,7 +276,7 @@ end;
 
 function TRSInventory.CountItems(Item: TRSItem): Int32; Overload;
 begin
-  if (ItemFinder.ItemNames.IndexOfName('noted ' + Item) > -1) then
+  if (System.ItemFinder.ItemNames.IndexOfName('noted ' + Item) > -1) then
     result := self.CountItems([Item, 'noted ' + Item])
   else
     result := self.CountItem(Item);
@@ -289,12 +289,14 @@ begin
   if not self.IsOpen() then Exit(False);
 
   item := itemName;
-  if (ItemFinder.ItemNames.IndexOfName('noted ' + itemName) > -1) and Inventory.ContainsItem('noted ' + itemName) then
+
+  if (System.ItemFinder.ItemNames.IndexOfName('noted ' + itemName) > -1) and Inventory.ContainsItem('noted ' + itemName) then
     item := 'noted ' + itemName
   else
     if not Inventory.ContainsItem(item) then
     begin
       writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
+      takeScreenshot(item + '_notFound.bmp');
       exit(False);
     end;
 
