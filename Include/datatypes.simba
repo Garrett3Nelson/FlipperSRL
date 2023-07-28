@@ -670,6 +670,8 @@ begin
   self.debug();
 end;
 
+
+
 // Count how many slots have active offers
 function tScript.countActiveSlots() : Int32;
 var
@@ -862,11 +864,12 @@ procedure tScript.setup(defaultWait : Int32 = 0);
 begin
   setLength(self.offers, 8);
   self.offers.reset(defaultWait);
-  self.logTimer.Init(ONE_SECOND * random(150, 200));
+  logTimer.Init(ONE_SECOND * random(150, 200));
 
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
   setLength(self.tradeLog, 0);
+  setLength(self.inv, 28);
 end;
 
 procedure tScript.init();
@@ -908,6 +911,7 @@ procedure TScript.Free();
 begin
   try
     RSClient.Image.Clear();
+    self.itemMap.Free();
     WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
   except
     Print('Couldnt Free Safely');
@@ -921,6 +925,5 @@ begin
   Print('Blacklist for next time: ' + toStr(self.itemBlackList), eDebugType.LIGHT);
 
   Print('You did great out there', eDebugType.LIGHT);
-  self.itemMap.Free();
 end;
 

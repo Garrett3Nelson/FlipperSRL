@@ -260,6 +260,8 @@ begin
       writeln('TRSGrandExchange.createBuyOffer: Failed to click confirm button');
       exit(False);
     end;
+
+    writeln('TRSGrandExchange.createBuyOffer: Result = ' ,Result);
   end else
   begin
     writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
@@ -338,6 +340,10 @@ begin
 
   if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
     result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000);
+
+  if result then Result := self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE;
+
+  writeln('TRSGrandExchange.createSellOffer: Result = ', Result);
 end;
 
 function TRSGrandExchange.OpenActiveOffer(slotNumber: Int32) : Boolean;

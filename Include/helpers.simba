@@ -3,6 +3,13 @@ begin
   result := 1000 * dateTimetoUnix(NowUTC(), True); // Unix is in seconds by default, change to ms to match all SRL functions
 end;
 
+procedure TMouse.Click(Button: Int32); override;
+begin
+  inherited;
+
+  logTimer.Restart();
+end;
+
 procedure print(txt: String; level: eDebugType = eDebugType.DEV);
 begin
   if bot.debugLevel = eDebugType.NONE then exit();

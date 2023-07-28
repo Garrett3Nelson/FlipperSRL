@@ -67,6 +67,26 @@ end;
   tGESlotArray = Array of tGESlot;
 
 (*
+type tInventorySlot
+~~~~~~~~~~~~~~~~~~
+.. pascal::
+   tInventorySlot = record
+     name : String; // Name of the item in inventory
+     count : Int32; // Stack count
+     exists: Boolean; // Is there an item in the slot
+   end;
+Keeps track of inventory information
+*)
+
+type tInventorySlot = record
+   name : String; // Name of the item in inventory
+   count : Int32; // Stack count
+   exists: Boolean; // Is there an item in the slot
+end;
+
+  tInventoryArray = array of tInventorySlot;
+
+(*
 type tGEOffer
 ~~~~~~~~~~~~~~~~~~
 .. pascal::
@@ -180,8 +200,8 @@ type
     itemBlackList : tStringArray;
     playerCash : Int32;
     coolDown : Boolean;
-    logTimer : tCountDown;
     globalID : Int32;
+    inv : tInventoryArray;
 
     // SRL Related Variables
     RSW : TRSWalker;
@@ -190,6 +210,7 @@ type
 // Running Variable
 var
   bot : tScript;
+  logTimer : tCountDown;
 
 begin
 end;
