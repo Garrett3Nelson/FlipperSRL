@@ -387,6 +387,19 @@ begin
 end;
 
 function TRSGrandExchange.CollectOffer(slotNumber : Int32) : Boolean; overload;
+
+  function collectSlot(b: tBox) : Boolean;
+  var
+    t : Int64;
+  begin
+    t := getSystemTime() + 4000;
+    while t > getSystemTime() do
+    begin
+      Mouse.Click(b, MOUSE_LEFT, True);
+      if result := waitUntil((SRL.CountColor(RS_ITEM_BORDER, b) = 0), 200, 800) then exit();
+    end;
+  end;
+
 var
   cBoxes : TBoxArray;
   collectionBox : tBox;
@@ -401,7 +414,11 @@ begin
   begin
     //writeln('Slot was specified, trying to open');
 
-    if not self.OpenActiveOffer(slotNumber) then exit(False);
+    if not self.OpenActiveOffer(slotNumber) then
+    begin
+      writeln('CollectOffer: Could not open the offer for slot ', slotNumber);
+      exit(False);
+    end;
   end;
 
   // Interface buttons can't locate the collection boxes easily within this interface
@@ -412,9 +429,8 @@ begin
   for collectionBox in cBoxes do
     if SRL.CountColor(RS_ITEM_BORDER, CollectionBox) > 0 then
     begin
-      Mouse.Click(collectionBox, MOUSE_LEFT);
-      waitUntil((SRL.CountColor(RS_ITEM_BORDER, collectionBox) = 0), 200, 3000);
-      // May need a failsafe to confirm it's collected
+      if not collectSlot(CollectionBox) then
+        writeln('CollectOffer: Failed to collect from collection box');
     end;
 
   result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
