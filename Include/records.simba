@@ -210,7 +210,6 @@ type
 // Running Variable
 var
   bot : tScript;
-  logTimer : tCountDown;
 
 begin
 end;

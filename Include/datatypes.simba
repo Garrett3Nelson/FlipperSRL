@@ -864,7 +864,6 @@ procedure tScript.setup(defaultWait : Int32 = 0);
 begin
   setLength(self.offers, 8);
   self.offers.reset(defaultWait);
-  logTimer.Init(ONE_SECOND * random(150, 200));
 
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
