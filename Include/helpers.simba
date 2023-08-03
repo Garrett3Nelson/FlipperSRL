@@ -5,13 +5,13 @@ end;
 
 procedure print(txt: String; level: eDebugType = eDebugType.DEV);
 begin
-  if bot.debugLevel = eDebugType.NONE then exit();
-
   if level = eDebugType.FATAL then
   begin
     writeln(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()), ' [FATAL]: ', txt);
     terminateScript();
   end;
+
+  if bot.debugLevel = eDebugType.NONE then exit();
 
   if (bot.debugLevel = eDebugType.DEV) or ((bot.debugLevel = eDebugType.LIGHT) and (level = eDebugType.LIGHT)) then
     writeln(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()), ' [BOT]: ', txt);
@@ -53,5 +53,58 @@ begin
   allowable := 1.0 - (diff / strLen);
 
   result := matchDiff >= allowable;
+end;
+
+function checkBlackList(name : String; blackList : tStringArray) : Boolean;
+var i : Int32;
+begin
+  name := lowercase(name);
+  if isStrInArr(name, False, blackList) then exit(True);
+
+  for i := 0 to high(blackList) do
+  begin
+    if pos("*", blackList[i]) then
+    begin
+      if length(blackList[i].Before("*")) > 0 then
+        result := pos(blackList[i].Before("*"), name) > 0
+      else
+        result := pos(blackList[i].After("*"), name) > 0;
+    end;
+
+    if result then exit();
+  end;
+end;
+
+function getIncludeHash() : Int64;
+var
+  files : tStringArray;
+  f : String;
+begin
+  files := getFiles({$MACRO CURRENT_DIRECTORY}, 'simba');
+  for f in files do
+    result += length(readFileContents({$MACRO CURRENT_DIRECTORY} + f));
+end;
+
+procedure SaveItemMap(ItemMap: tItemMapArray);
+var
+  Map : tItemMap;
+  StringA, MapLine : tStringArray;
+  f : Int32;
+begin
+  if not FileExists({$MACRO CURRENT_DIRECTORY} + 'map.csv') then
+  begin
+    f := CreateFile({$MACRO CURRENT_DIRECTORY} + 'map.csv');
+    CloseFile(f);
+  end;
+  MapLine := ['ID', 'Limit', 'Name', 'AvgLow', 'AvgHigh', 'HighVol', 'LowVol', 'VolumeFactor', 'PercentTradeable', 'Tradeable', 'Value'];
+  StringA.Append(MapLine.Merge(','));
+
+  for Map in ItemMap do
+  begin
+    MapLine := [toStr(Map.ID), toStr(Map.Limit), Map.Name, toStr(map.AvgLow), toStr(map.AvgHigh), toStr(map.HighVol), toStr(map.LowVol), toStr(map.VolumeFactor), toStr(map.PercentTradeable), toStr(map.Tradeable), toStr(map.Value)];
+    StringA.Append(MapLine.Merge(','));
+  end;
+
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'map.csv', StringA.Merge(STR_NEW_LINE) , False);
 end;
 

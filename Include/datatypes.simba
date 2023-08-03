@@ -670,7 +670,199 @@ begin
   self.debug();
 end;
 
+//procedure tInventoryArray.GetCurrent();
+//begin
+//end;
+//
+//function tInventorySlot.Equals(slot : tInventorySlot) : Boolean;
+//begin
+//end;
+//
+//function tInventoryArray.GetUpdated() : tIntegerArray;
+//begin
+//end;
+//
+//function tGEOfferArray.SortIndexBySlot() : tIntegerArray;
+//begin
+//end;
 
+procedure tItemMapArray.append(constref itemMap : tItemMap);
+begin
+  insert(itemMap, self, length(self));
+end;
+
+procedure tItemMapArray.deleteIndex(const index : Integer);
+begin
+  if not inRange(index, low(self), high(self)) then
+  begin
+    //tScript.print('ERROR: deleteIndex: index out of bounds.');
+    exit();
+  end;
+
+  delete(self, index, 1);
+end;
+
+procedure tItemMapArray.Randomize();
+var i, h : Int32;
+begin
+  h := high(self);
+  for i := 0 to h do
+    swap(self[i], self[random(length(self))]);
+end;
+
+function tJSONObject.HasAll(keys : tStringArray; checkNull : Boolean = False) : Boolean;
+var key : String;
+begin
+  for key in keys do
+    if not self.has(key) then exit(False);
+
+  if checkNull then
+    for key in keys do
+      if self.isNull(key) then exit(False);
+
+  result := True;
+end;
+
+function CreateItemMap(id, limit : Int32; name : String) : tItemMap;
+begin
+  Result.ID := id;
+  Result.Name := name;
+  Result.Limit := limit;
+end;
+
+procedure tItemMap.UpdateItemMap(json : tJSONObject);
+begin
+  self.HighVol := json.getInt('highPriceVolume');
+  self.LowVol := json.getInt('lowPriceVolume');
+  self.AvgHigh := json.getInt('avgHighPrice');
+  self.AvgLow := json.getInt('avgLowPrice');
+end;
+
+//
+// GetSortedItemNamesOnly by Olly
+// Improvements to CreateItemMapArray directly from Olly feedback
+//
+
+function getSortedItemNamesOnly: TStringList;
+var
+  i: Integer;
+begin
+  Result.Init();
+  Result.LoadFromFile(AppPath + 'Includes\SRL-T\osr\itemfinder\item-names');
+  for i:=0 to Result.getCount()-1 do
+    Result.setStrings(i, Copy(Result.getStrings(i), 1, Pos('=', Result.getStrings(i)) - 1)); // remove =1234, just have the names
+  Result.SetSorted(True); // Items.Sort() is wrong for this usecase
+end;
+
+function tJSONArray.CreateItemMapArray() : tItemMapArray;
+var
+  i, p, count: Int32;
+  tempJSON : tJSONObject;
+  ItemMap : tItemMap;
+  tempName : String;
+  Items: TStringList;
+begin
+  Items := getSortedItemNamesOnly();
+
+  setLength(result, self.length());
+  for i := 0 to self.length() - 1 do
+  begin
+    try
+      tempJSON := self.getJSONObject(i);
+
+      if not tempJSON.HasAll(['id', 'name', 'limit'], True) then continue;
+
+      tempName := tempJSON.getString('name');
+      p := pos(' (tablet)', tempName);
+      if p > 0 then setLength(tempName, p-1);
+
+      if (Items.IndexOf(tempName) = -1) then continue;
+
+      result[count] := [tempJSON.getInt('id'), tempJSON.getInt('limit'), 0, 0, 0, 0, 0, 0, tempName, 0.0, 0.0];
+      inc(count);
+    except
+    end;
+  end;
+  SetLength(Result, Count);
+
+  result.Randomize();
+  items.Free();
+end;
+
+procedure tItemMapArray.AddHourly(HourlyJSON : tJSONObject);
+var
+  i : Int32;
+  Hourly : tJSONObject;
+begin
+  for i := 0 to high(self) do
+  begin
+    if not HourlyJSON.has(toStr(self[i].ID)) then continue;
+
+    Hourly := HourlyJSON.getJSONObject(toStr(self[i].ID));
+
+    if not Hourly.HasAll(['highPriceVolume', 'lowPriceVolume', 'avgHighPrice', 'avgLowPrice'], True) then continue;
+
+    self[i].UpdateItemMap(Hourly);
+  end;
+end;
+
+procedure tScript.UpdateItemMap(HourlyJSON : tJSONObject);
+var
+  i : Int32;
+begin
+  self.ItemMap.AddHourly(HourlyJSON);
+
+  for i := 0 to high(self.ItemMap) do
+  begin
+    if min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) > 0 then
+      self.ItemMap[i].VolumeFactor := round(min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) / self.ItemMap[i].Limit, 2);
+
+    if self.ItemMap[i].AvgLow > 0 then
+    begin
+      self.ItemMap[i].Tradeable := round(self.PlayerCash / self.ItemMap[i].AvgLow);
+      self.ItemMap[i].PercentTradeable := round(100 * (self.ItemMap[i].Tradeable / self.ItemMap[i].Limit), 2);
+    end;
+
+    self.ItemMap[i].Value := self.ItemMap[i].AvgLow * self.ItemMap[i].Limit;
+  end;
+end;
+
+function FilterItem(item : tItemMap; itemFilter : tItemFilter) : Boolean;
+begin
+  if checkBlackList(item.Name, itemFilter.BlackList) then exit(False);
+
+  Result := (item.PercentTradeable >= itemFilter.MinPercentTradeable)
+    and (item.Tradeable >= itemFilter.MinTradeable)
+    and (item.VolumeFactor >= itemFilter.MinVolumeFactor)
+    and (item.Limit >= itemFilter.MinLimit)
+    and (item.AvgLow >= itemFilter.MinPrice)
+    and (item.Value >= itemFilter.MinValue);
+end;
+
+function tScript.CreateFilteredList() : tStringArray;
+var
+  i, needed: Int32;
+begin
+  needed := 4 * round(60/(self.UserItemFilter.MinVolumeFactor*2));
+
+  for i := 0 to high(self.ItemMap) do
+  begin
+    if length(result) >= needed then exit();
+
+    if FilterItem(self.ItemMap[i], self.UserItemFilter) then result.append(self.ItemMap[i].Name);
+  end;
+
+  if length(result) <= needed then
+  begin
+    print('WARNING: Your item list was only ' + toStr(length(result)) + ' items long, adding default filters to hit ' + toStr(needed), eDebugType.LIGHT);
+    for i := 0 to high(self.ItemMap) do
+    begin
+      if length(result) >= needed then exit();
+
+      if FilterItem(self.ItemMap[i], self.DefaultItemFilter) then result.append(self.ItemMap[i].Name);
+    end;
+  end;
+end;
 
 // Count how many slots have active offers
 function tScript.countActiveSlots() : Int32;
@@ -869,6 +1061,16 @@ begin
   setLength(self.itemQ, 0);
   setLength(self.tradeLog, 0);
   setLength(self.inv, 28);
+
+  with self.DefaultItemFilter do
+  begin
+    MinVolumeFactor := 1.5;
+    MinPercentTradeable := 1.0;
+    MinTradeable := 5;
+    MinValue := 1/32;
+    MinLimit := 201;
+    MinPrice := 100;
+  end;
 end;
 
 procedure tScript.init();
@@ -910,7 +1112,7 @@ procedure TScript.Free();
 begin
   try
     RSClient.Image.Clear();
-    self.itemMap.Free();
+    //self.itemMap.Free();
     WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
   except
     Print('Couldnt Free Safely');
@@ -918,10 +1120,10 @@ begin
 
   Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);
   Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
-  Print('Start Cash: ' + toStr(self.starterCash) + ', Current Cash: ' + toStr(self.playerCash));
-  Print('Cash change of: ' + toStr(self.playerCash - self.starterCash));
+  //Print('Start Cash: ' + toStr(self.starterCash) + ', Current Cash: ' + toStr(self.playerCash));
+  //Print('Cash change of: ' + toStr(self.playerCash - self.starterCash));
   Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
-  Print('Blacklist for next time: ' + toStr(self.itemBlackList), eDebugType.LIGHT);
+  //Print('Blacklist for next time: ' + toStr(self.UserItemFilter.BlackList), eDebugType.LIGHT);
 
   Print('You did great out there', eDebugType.LIGHT);
 end;

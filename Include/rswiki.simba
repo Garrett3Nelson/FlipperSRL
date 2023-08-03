@@ -2,6 +2,8 @@ procedure tScript.pullMapping(userAgent: String = 'Simba Client - Mapping Inform
 var
   url, resString : String;
   theClient : Int32;
+  JSONMap : tJSONArray;
+  t : Int64;
 begin
   url := 'https://prices.runescape.wiki/api/v1/osrs/mapping';
 
@@ -9,8 +11,18 @@ begin
     theClient := InitializeHTTPClient(False);
     SetHTTPUserAgent(theClient, userAgent);
 
+    //t := getSystemTime();
     resString := GetHTTPPage(theClient, url);
-    self.itemMap.Init(resString);
+    //writeln('Getting HTTP Page took ', getSystemTime() - t, 'ms');
+
+    //t := getSystemTime();
+    JSONMap.Init(resString);
+    //writeln('Creating JSONMap took ', getSystemTime() - t, 'ms');
+
+    //t := getSystemTime();
+    self.ItemMap := JSONMap.CreateItemMapArray();
+    //writeln('Creating ItemMap took ', getSystemTime() - t, 'ms');
+    JSONMap.Free();
   except
     // Add debug of error
     print("Failed to get item data, cannot load items", eDebugType.FATAL);
@@ -90,35 +102,25 @@ begin
     self[i] := tempOffers[i].item;
 end;
 
-function tGEItem.parseMap(itemMap : tJSONArray) : boolean;
+function tGEItem.parseMap(itemMap : tItemMapArray) : boolean;
 var
-  tempObject : tJSONObject;
-  i : Int32;
+  item : tItemMap;
 begin
-  result := True;
-
   if self.name = '' then exit(True);  // No item to set up
   if self.itemID > 0 then exit(True); // Already set up
 
-  try
-    for i := 0 to itemMap.length()-1 do
+  for item in itemMap do
+  begin
+    if self.name = item.Name then
     begin
-      tempObject := itemMap.getJSONObject(i);
-      if self.name = tempObject.getString('name') then
-      begin
-        self.itemID := tempObject.getInt('id');
-        if tempObject.has('limit') then
-          self.limit := tempObject.getInt('limit');
-        break;
-      end;
+      self.itemID := item.ID;
+      self.limit := item.Limit;
+      exit(True);
     end;
-  except
-    writeln('Failed to parse: ', self.name);
-    result := False;
   end;
 end;
 
-function tGEItemArray.parseMap(itemMap : tJSONArray): boolean; overload;
+function tGEItemArray.parseMap(itemMap : tItemMapArray): boolean; overload;
 var i : Int32;
 begin
   result := True;
@@ -129,7 +131,7 @@ begin
     // Not sure how to handle yet but I don't want it killing the script yet either
 end;
 
-function tGEOfferArray.parseMap(itemMap : tJSONArray) : boolean; overload;
+function tGEOfferArray.parseMap(itemMap : tItemMapArray) : boolean; overload;
 var
   i : Int32;
 begin

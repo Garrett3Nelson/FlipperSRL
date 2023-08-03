@@ -18,9 +18,6 @@ type tGEItem
 This is used for tracking item information through offers
 *)
 
-
-
-
 type tGEItem = record
   name : String;
   itemID, limit, market, buy, sell : Int32;
@@ -158,6 +155,21 @@ end;
 
   tTradeRecordArray = Array of tTradeRecord;
 
+type tItemMap = record
+  ID, Limit, AvgHigh, AvgLow, HighVol, LowVol, Tradeable : Int32;
+  Value : Int64;
+  Name : String;
+  VolumeFactor, PercentTradeable : Extended;
+end;
+
+  tItemMapArray = Array of tItemMap;
+
+type tItemFilter = record
+  MinVolumeFactor, MinPercentTradeable, MinValue : Extended;
+  MinTradeable, MinLimit, MinPrice : Int32;
+  blackList : tStringArray;
+end;
+
 (*
 type tScript
 ~~~~~~~~~~~~~~~~~~
@@ -195,9 +207,10 @@ type
     offers : tGEOfferArray;
     history : tGEHistoryArray;
     itemQ : TGEItemArray;
-    itemMap : tJSONArray;
+    itemMap : tItemMapArray;
+    UserItemFilter : tItemFilter;
+    DefaultItemFilter : tItemFilter;
     itemList : tStringArray;
-    itemBlackList : tStringArray;
     playerCash : Int32;
     coolDown : Boolean;
     globalID : Int32;

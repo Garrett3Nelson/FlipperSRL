@@ -60,6 +60,11 @@ begin
   result := self.GetProgress(self.GetOfferSlots()[slotNumber], 105);
 end;
 
+function TRSGrandExchange.IsSlotComplete(slotNumber: Int32): Boolean;
+begin
+  result := SRL.CountColor(18944, self.GetOfferSlots()[slotNumber]) > 0;
+end;
+
 type
   ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
 
@@ -72,7 +77,7 @@ begin
   if Status.OfferType = ERSGEOfferType.UNKNOWN then exit(ERSGEOfferStatus.UNKNOWN);
 
   if (Status.Progress = -1) then exit(ERSGEOfferStatus.ABORTED);
-  if (Status.Progress = 100) then exit(ERSGEOfferStatus.COMPLETE);
+  if (Status.Progress = 100) and self.IsSlotComplete(slotNumber) then exit(ERSGEOfferStatus.COMPLETE);
 
   result := ERSGEOfferStatus.ACTIVE;
 end;
@@ -483,6 +488,7 @@ begin
   Result := waitUntil(SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0, 200, 2000);
 
   if Result then waitUntil((self.CountCollectionSlots() > itemCount), 250, 2000);
+  writeln('GrandExchange: Abort Slot ', slotNumber, ': ', result);
 end;
 
 function TRSGrandExchange.ReturnToMain() : Boolean;
