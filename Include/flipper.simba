@@ -31,7 +31,7 @@
 {$DEFINE WL_CACHEPARSER_INCLUDED}
 {$DEFINE WL_MOUSEZOOM_INCLUDED}
 {$DEFINE WL_RECORDER_INCLUDED}
-{$I WaspLib/utils/recorder/recorder.simba}
+{$I Includes/WaspLib/utils/recorder/recorder.simba}
 {$ENDIF}
 
 {$include_once records.simba}

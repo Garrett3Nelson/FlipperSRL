@@ -119,7 +119,6 @@ begin
   mbmp.Free();
 end;
 
-{$IFHASFILE Includes/WaspLib/utils/recorder/recorder.simba}
 procedure tScript.SetupRecorder();
 var
   userB, expB: TBox;
@@ -133,5 +132,4 @@ begin
 
   Recorder.Start(30, {$MACRO CURRENT_DIRECTORY} + 'Video', userB, expB);
 end;
-{$ENDIF}
 

@@ -1424,7 +1424,7 @@ begin
   if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Video') then
     CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Video');
 
-  {$IFHASFILE Includes/Recorder/recorder.simba}
+  {$IFHASFILE Includes/WaspLib/utils/recorder/recorder.simba}
   if self.useRecorder then
     self.setupRecorder();
   {$ENDIF}
