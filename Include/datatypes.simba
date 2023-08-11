@@ -201,64 +201,6 @@ begin
   self.lastUpdate := self.startTime; // At the beginning these are the same
 end;
 
-(*
-tGEOffer.updateTrades
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEOffer.updateTrades();
-Removes any trade records that are over 4 hours old, to update the limit calculation.
-*)
-
-//procedure tGEOffer.updateTrades();
-//var
-//  cutoff, lim, i : Integer;
-//begin
-//  cutoff := getSystemUnix() - (4*60*60); // 4 hour cutoff for trades
-//
-//  lim := high(self.previousTrades);
-//
-//  for i := lim downto 0 do
-//    if self.previousTrades[i].tradeFinished < cutoff then // if it's been longer than 4 hours
-//      self.previousTrades.deleteIndex(i);
-//end;
-
-(*
-tGEOffer.addTrade
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   procedure tGEOffer.addTrade(trade : tTradeRecord);
-Adds a trade record to the offer for tracking.
-*)
-
-//procedure tGEOffer.addTrade(constref trade : tTradeRecord);
-//begin
-//  if trade.amount <= 0 then
-//    writeln("ERROR: Cannot add trade of 0 amount")
-//  else
-//    self.previousTrades.append(trade);
-//
-//  self.updateTrades(); // After appending, check to see if any old records can be removed
-//end;
-
-(*
-tGEOffer.countTraded
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. pascal::
-   function tGEOffer.countTraded() : Integer
-Sums up the amount we've traded so far. The next partial offer will be calculated
-as limit - countTraded.
-*)
-
-//function tGEOffer.countTraded() : Integer;
-//var
-//  i, lim : Integer;
-//begin
-//  self.updateTrades(); // Before we count, get rid of any old trades
-//  lim := high(self.previousTrades);
-//  for i := 0 to lim do
-//    Result += self.previousTrades[i].amount
-//
-//end;
 
 (*
 tGESlot.debug
@@ -274,15 +216,16 @@ begin
   print(toStr(self));
 end;
 
-function tGEOffer.stringify(collected : Boolean = True; full: Boolean = False) : String;
+function tGEOffer.stringify(i : Int32; collected : Boolean = True; full: Boolean = False) : String;
 begin
   if full then
-    result := 'Offer: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue) + '. Profit: ' + toStr(self.revenue-self.spent) + '. Time: ' + toStr(round((getSystemUnix() - self.startTime)/1000)) + 's'
+    result := 'Offer ' + '[' + toStr(i) + ']: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue) + '. Profit: ' + toStr(self.revenue-self.spent) + '. Time: ' + toStr(round((getSystemUnix() - self.startTime)/1000)) + 's'
   else
-    result := 'Offer: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
+    result := 'Offer ' + '[' + toStr(i) + ']: ' + toStr(self.globalID) + '. Status = ' + self.status + '. slotNumber = ' + toStr(self.slotNumber) + '. toTrade = ' + toStr(self.toTrade) + '. Purchased = ' + toStr(self.purchased) + '. Spent: ' + toStr(self.spent) + '. Revenue: ' + toStr(self.revenue);
   if collected then
     result += '. Collected: ' + toStr(self.collected) +'. History Updated: ' + toStr(self.HistUpdated);
-
+  if length(InvSlots) > 0 then
+    result += '. InvSlots = ' + toStr(self.InvSlots);
 end;
 
 (*
@@ -294,9 +237,9 @@ Puts the important info about an offer into a nice readable string. It reports
 tradeID, status, toTrade, and purchased.
 *)
 
-procedure tGEOffer.debug();
+procedure tGEOffer.debug(i : Int32);
 begin
-  print(self.stringify());
+  print(self.stringify(i));
   self.item.debug();
   self.slot.debug();
 end;
@@ -309,14 +252,14 @@ tGEOfferArray.debug
 Debugs all offers.
 *)
 
-procedure tGEOfferArray.debug();
+procedure tGEOfferArray.debug(Force : Boolean = False);
 var
   i, lim : Int32;
 begin
   lim := high(self);
   for i := 0 to lim do
-    if self[i].status <> 'empty' then
-      self[i].debug();
+    if Force or (self[i].status <> 'empty') then
+      self[i].debug(i);
 end;
 
 procedure tGEOfferArray.append(constref offer : tGEOffer);
@@ -339,6 +282,15 @@ begin
   lim := high(self);
   for i := 0 to lim do
     if self[i].collected then inc(result);
+end;
+
+function tGEOfferArray.ListCollectedBuys() : tIntegerArray;
+var
+  i, lim : Int32;
+begin
+  lim := high(self);
+  for i := 0 to lim do
+    if (self[i].aborted and (self[i].purchased > 0)) or (self[i].collected and (self[i].status = 'buying')) then result.append(i);
 end;
 
 (*
@@ -374,7 +326,13 @@ begin
     if (self[i].slot.Progress = 100) then result.append(self[i].slotNumber);
 end;
 
-
+function tGEOfferArray.CountChanged() : tIntegerArray;
+var
+  i : Integer;
+begin
+  for i := 0 to high(self) do
+    if (self[i].slot.Progress > self[i].slot.LastProgress) then result.append(i);
+end;
 
  (*
 tGESlot Functions
@@ -413,6 +371,19 @@ var i : Int32;
 begin
   for i := 0 to high(self) do
     self[i].updateSlot();
+end;
+
+function tGEOffer.getStackedItem() : Int32;
+var
+  i : Int32;
+begin
+  if length(self.InvSlots) = 0 then Exit(-1);
+
+  for i := 0 to high(self.InvSlots) do
+    if Inventory.IsSlotNoted(self.invSlots[i]) or (Inventory.ItemInterface.CountStack(self.invSlots[i]) > 1) then
+     exit(i);
+
+  result := 0;
 end;
 
 function tGEHistory.stringify() : String;
@@ -670,21 +641,376 @@ begin
   self.debug();
 end;
 
-//procedure tInventoryArray.GetCurrent();
+function tInventorySlot.stringify(slotNum : Int32) : String;
+begin
+  result := '[' + toStr(slotNum) + ']: ' + Self.Name + ', Stack of ' + toStr(self.count) + '. Exists = ' + toStr(self.exists);
+end;
+
+procedure tInventorySlot.debug(slotNum : Int32);
+begin
+  print(self.stringify(slotNum));
+
+end;
+
+procedure tInventoryArray.debug();
+var i : Int32;
+begin
+  for i := 0 to 27 do
+    if self[i].exists then
+      self[i].debug(i);
+end;
+
+procedure tInventorySlot.reset();
+begin
+  self.name := '';
+  self.count := -1;
+  self.exists := False;
+end;
+
+procedure tInventorySlot.GetCurrent(InvNumber : Int32);
+begin
+  if Inventory.IsSlotUsed(InvNumber) then
+  begin
+    self.exists := True;
+    self.count := max(1, Inventory.ItemInterface.CountStack(InvNumber));
+  end else
+    self.count := -1;
+end;
+
+procedure tInventoryArray.GetCurrent();
+var
+  i : Int32;
+begin
+  setLength(self, 28);
+
+  for i := 0 to 27 do
+    self[i].GetCurrent(i);
+end;
+
+function tInventorySlot.IsUpdated(slot : tInventorySlot) : Boolean;
+begin
+  result := (self.exists <> slot.exists) or (self.count <> slot.count);
+end;
+
+function tInventorySlot.IsUpdated(slot : Int32) : Boolean; overload;
+var tempSlot : tInventorySlot;
+begin
+  tempSlot.GetCurrent(slot);
+  result := self.IsUpdated(tempSlot);
+end;
+
+function tInventorySlot.IsNew(slot : tInventorySlot) : Boolean;
+begin
+  result := (not self.exists) and slot.exists; // If the old (self) didn't exist and now it does, it's new
+end;
+
+procedure tInventoryArray.ClearSlots(slots : tIntegerArray);
+var i : Int32;
+begin
+  for i := 0 to high(slots) do
+    self[slots[i]].reset();
+end;
+
+function tInventoryArray.HasUpdated() : Boolean;
+var
+  newInv : tInventoryArray;
+  i : Int32;
+begin
+  newInv.getCurrent();
+  for i := 0 to 27 do
+  begin
+    if self[i].name = 'Coins' then continue;
+
+    if self[i].IsUpdated(newInv[i]) then exit(True);
+  end;
+end;
+
+function tInventoryArray.GetUpdated(newInv: tInventoryArray; out newSlots : tIntegerArray) : tIntegerArray;
+var
+  i : Int32;
+begin
+  for i := 0 to 27 do
+  begin
+    if self[i].name = 'Coins' then continue;
+
+    if self[i].IsUpdated(newInv[i]) then result.Append(i);
+    if self[i].IsNew(newInv[i]) then newSlots.Append(i);
+  end;
+end;
+
+function tGEOfferArray.SortBySlot() : tIntegerArray;
+var
+  i, j : Int32;
+  tOfferArray : tGEOfferArray;
+begin
+  tOfferArray := copy(self, 0, 8);
+  for i := 0 to high(tOfferArray) do
+    tOfferArray[i].globalID := i;  // The globalID is now the real OfferIndex
+
+  for i:=0 to high(tOfferArray) do
+    for j:=0 to high(tOfferArray) do
+      if (tOfferArray[i].slotNumber < tOfferArray[j].slotNumber) then
+        Swap(tOfferArray[i], tOfferArray[j]); // Sort the tempArray by slotNumber
+
+  for i := 0 to high(tOfferArray) do
+    result.append(tOfferArray[i].globalID); // Return the indices sorted
+end;
+
+function tScript.AddOfferToNextInv(offerIndex : Int32) : Boolean;
+var i : Int32;
+begin
+  for i := 0 to 27 do
+  if not self.Inv[i].exists then
+  begin
+    self.Inv[i].exists := True;
+    self.Inv[i].count := max(1, self.offers[offerIndex].purchased);
+    self.Inv[i].name := self.offers[offerIndex].item.name;
+    exit(true);
+  end;
+end;
+
+procedure tScript.slotsBestMatches(GESlot : tIntegerArray; var InvSlot : TIntegerArray; newInv : tInventoryArray; resetProgress : Boolean = True);
+var
+  i, j, matchIndex : Int32;
+  bestMatch : Extended;
+  InvUptext, namesToMatch : tStringArray;
+begin
+  if (length(GESlot) = 1) and (length(InvSlot) = 1) then
+  begin
+    self.offers[GESlot[0]].InvSlots.Append(invSlot[0]);
+    self.Inv[invSlot[0]] := newInv[invSlot[0]];
+    self.Inv[invSlot[0]].name := self.offers[GESlot[0]].item.name;
+    invslot.Del(i, 1);
+    exit();
+  end;
+
+  setLength(InvUpText, length(InvSlot));
+  setLength(namesToMatch, length(GESlot));
+
+  for i := 0 to high(InvSlot) do
+    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/'));
+
+  for i := 0 to high(GESlot) do
+    namesToMatch[i] := lowercase(self.offers[GESlot[i]].item.name.replace(' ', ''));
+
+  for i := high(InvSlot) downto 0 do
+  begin
+    if length(GESlot) = 0 then break();
+
+    print('Attempting to match Inventory Slots ' + toStr(invslot) + ' with Offer Indices ' + toStr(geslot));
+
+    for j := 0 to high(GESlot) do
+      if (StringMatch(namesToMatch[j], invUpText[i]) > bestMatch) then
+      begin
+        bestMatch := StringMatch(namesToMatch[j], invUpText[i]);
+        matchIndex := j;
+      end;
+
+    print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')');
+    self.offers[GESlot[matchIndex]].InvSlots.Append(invSlot[i]);
+    self.Inv[invSlot[i]] := newInv[invSlot[i]];
+    self.Inv[invSlot[i]].name := self.offers[GESlot[matchIndex]].item.name;
+
+    GESlot.Del(matchIndex, 1);
+    namesToMatch.Del(matchIndex, 1);
+    invslot.Del(i, 1);
+
+    bestMatch := -1.0;
+    matchIndex := -1;
+  end;
+
+  if resetProgress and (length(GESlot) > 0) then
+  begin
+    print('The following Offer Indices were not matched: ' + toStr(GESlot));
+    for i := 0 to high(GESlot) do
+      self.offers[GESlot[i]].slot.preciseProgress := self.offers[GESlot[i]].slot.LastPreciseProgress;
+  end;
+end;
+
+//function tScript.slotsBestMatches(GESlot, InvSlot : TIntegerArray) : tIntegerArray;
+//var
+//  i, j : Int32;
+//  InvUptext : tStringArray;
+//  matches : tExtendedArray;
 //begin
-//end;
+//  setLength(InvUpText, length(InvSlot));
+//  setLength(matches, length(InvSlot));
+//  setLength(result, length(InvSlot));
 //
-//function tInventorySlot.Equals(slot : tInventorySlot) : Boolean;
-//begin
-//end;
+//  for i := 0 to high(InvSlot) do
+//    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/'));
 //
-//function tInventoryArray.GetUpdated() : tIntegerArray;
-//begin
-//end;
+//  // It shouldn't get here unless InvSlot is at least 1 less than GESlot (less inv found than there are potential GE slots collected)
+//  for i := 0 to high(InvSlot) do
+//  begin
+//    matches[i] := StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]);
+//    result[i] := GESlot[0];
+//    if length(GESlot) = 1 then break();
 //
-//function tGEOfferArray.SortIndexBySlot() : tIntegerArray;
-//begin
+//    for j := 1 to high(GESlot) do
+//      if (StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]) > matches[i]) then
+//      begin
+//        matches[i] := StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]);
+//        result[i] := GESlot[i];
+//      end;
+//
+//
+//    GESlot.Del(GESlot.Find(result[i]), 1);
+//  end;
 //end;
+
+function tScript.FindOfferByInv(invSlot : Int32) : Int32;
+var i, j : Int32;
+begin
+  for i := 0 to high(self.offers) do
+  begin
+    if length(self.offers[i].invSlots) = 0 then continue;
+
+    for j := 0 to high(self.offers[i].InvSlots) do
+      if self.offers[i].InvSlots[j] = invSlot then exit(i);
+
+  end;
+
+  result := -1;
+end;
+
+procedure tScript.TakeItemScreenshots();
+var
+  folderName, itemName : String;
+  offerIndex, slot : Int32;
+  noted, alreadyExists : Boolean;
+begin
+  if not self.ScreenshotItems then exit();
+
+  for offerIndex := 0 to 7 do
+  begin
+    if length(self.offers[offerIndex].InvSlots) = 0 then exit()
+    else slot := self.offers[offerIndex].InvSlots[0];
+
+    folderName := FormatDateTime('yyyymmdd', Now());
+    noted := Inventory.isSlotNoted(slot);
+
+    itemName := toStr(self.offers[offerIndex].item.itemID);
+    if noted then itemName += '_noted';
+
+    if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots/Items/' + folderName) then
+      CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots/Items/' + folderName);
+
+    alreadyExists := FileExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots/Items/' + folderName + '/' + itemName + '.bmp');
+
+    if not alreadyExists then
+      SaveCroppedBitmap({$MACRO CURRENT_DIRECTORY} + 'Screenshots/Items/' + folderName + '/' + itemName + '.bmp', Inventory.GetSlotBox(slot));
+
+  end;
+end;
+
+procedure tScript.MatchInventory();
+var
+  slot, i, oldProgress : Int32;
+  changedInv, newSlots, sortedOffers, slotsToMatch, slotsToSkip : tIntegerArray;
+  newInv : tInventoryArray;
+begin
+  sortedOffers := self.offers.SortBySlot();
+  //print('Sorted Offer Indices = ' + toStr(sortedOffers));
+
+  newInv.getCurrent();
+  changedInv := self.Inv.GetUpdated(newInv, newSlots);
+  if length(ChangedInv) = 0 then exit();
+
+  print('Changed Inv Slots:');
+  for i := 0 to high(changedInv) do
+  begin
+    print('Old Inventory: ' + self.inv[changedInv[i]].stringify(changedInv[i]));
+    print('New Inventory: ' + newInv[changedInv[i]].stringify(changedInv[i]));
+  end;
+
+  for slot := 0 to 7 do
+    //if sortedOffers[slot] in slotsToMatch then
+    if length(self.offers[sortedOffers[slot]].invSlots) > 0 then
+      for i := 0 to high(self.offers[sortedOffers[slot]].invSlots) do
+        if self.offers[sortedOffers[slot]].invSlots[i] in changedInv then
+        begin
+          print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]));
+          self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].count := newInv[self.offers[sortedOffers[slot]].invSlots[i]].count;
+          self.offers[sortedOffers[slot]].slot.preciseProgress := grandExchange.GetPreciseProgress(self.offers[sortedOffers[slot]].slotNumber);
+
+          changedInv.Del(changedInv.Find(self.offers[sortedOffers[slot]].invSlots[i]), 1);
+          slotsToSkip.Append(sortedOffers[slot]);
+          break();
+        end;
+
+  slotsToMatch := self.offers.ListCollectedBuys();
+  for slot := 0 to 7 do
+  begin
+    if sortedOffers[slot] in slotsToSkip then continue;
+    if self.offers[sortedOffers[slot]].collected or (not (self.offers[sortedOffers[slot]].status = 'buying')) then continue;
+
+    self.offers[sortedOffers[slot]].slot.lastPreciseProgress := oldProgress := self.offers[sortedOffers[slot]].slot.preciseProgress;
+    self.offers[sortedOffers[slot]].slot.preciseProgress := grandExchange.GetPreciseProgress(self.offers[sortedOffers[slot]].slotNumber);
+
+    if self.offers[sortedOffers[slot]].slot.preciseProgress > oldProgress then
+    begin
+      print('Found progress change in offer: ' + toStr(sortedOffers[slot]));
+
+      // Double check that ChangedInv didn't miss anything, and run through the existing slots for this item
+      if length(self.offers[sortedOffers[slot]].invSlots) > 0 then
+      begin
+        // First check to see if the inv actually changed, then update the entry if it was
+        for i := 0 to high(self.offers[sortedOffers[slot]].invSlots) do
+          if self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].isUpdated(self.offers[sortedOffers[slot]].invSlots[i]) then
+          begin
+            print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]));
+            self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].count := newInv[self.offers[sortedOffers[slot]].invSlots[i]].count;
+            if changedInv.Find(self.offers[sortedOffers[slot]].invSlots[i]) then
+              changedInv.Del(changedInv.Find(self.offers[sortedOffers[slot]].invSlots[i]), 1);
+            slotsToSkip.Append(sortedOffers[slot]);
+            continue(2);
+          end;
+      end;
+
+      // If the inv slot didn't update, add it to the toMatch list for later - this is a new addition to inventory
+      slotsToMatch.append(sortedOffers[slot]);
+    end;
+  end;
+
+  if length(changedInv) = 0 then
+  begin
+    for i := 0 to high(slotsToMatch) do
+      self.offers[slotsToMatch[i]].slot.preciseProgress := self.offers[slotsToMatch[i]].slot.LastPreciseProgress;
+
+    exit();
+  end;
+
+  print('slotsToSkip = ' + toStr(slotsToSkip));
+
+  for slot := 0 to 7 do
+    if (sortedOffers[slot] in slotsToSkip) and (sortedOffers[slot] in slotsToMatch) then
+      slotsToMatch.Del(slotsToMatch.Find(sortedOffers[slot]), 1);
+
+  print('ChangedInv = ' + toStr(ChangedInv));
+  print('slotsToMatch = ' + toStr(slotsToMatch));
+
+  if length(changedInv) > (length(slotsToMatch) + length(slotsToSkip)) then
+    print('There are too many items in the inventory to match to slots', eDebugType.FATAL);
+
+  self.SlotsBestMatches(slotsToMatch, changedInv, newInv);
+
+  if (length(changedInv) > 0) and (length(slotsToSkip) > 0) then
+  begin
+    print('Some inventory is still not matched, rechecking updated slots to see if a double collection happened');
+    self.SlotsBestMatches(slotsToSkip, changedInv, newInv, False);
+  end;
+
+  for slot := 0 to 27 do
+    if self.Inv[slot].exists and (self.Inv[slot].name = '') then
+    begin
+      self.Inv.debug();
+      print('There is an unmatched inventory slot', eDebugType.FATAL);
+    end;
+
+  print('Debug Offers');
+  self.offers.debug();
+end;
 
 procedure tItemMapArray.append(constref itemMap : tItemMap);
 begin
@@ -758,7 +1084,6 @@ function tJSONArray.CreateItemMapArray() : tItemMapArray;
 var
   i, p, count: Int32;
   tempJSON : tJSONObject;
-  ItemMap : tItemMap;
   tempName : String;
   Items: TStringList;
 begin
@@ -1004,6 +1329,8 @@ begin
   self.TotalPrice := 0;
   self.Progress := 0;
   self.lastProgress := 0;
+  self.PreciseProgress := 0;
+  self.LastPreciseProgress := 0;
 end;
 
 (*
@@ -1033,6 +1360,7 @@ begin
   self.histUpdated := False;
   self.item.reset();
   self.slot.reset();
+  setLength(self.invSlots, 0);
 end;
 
 (*
@@ -1060,7 +1388,7 @@ begin
   setLength(self.history, 0);
   setLength(self.itemQ, 0);
   setLength(self.tradeLog, 0);
-  setLength(self.inv, 28);
+  setLength(self.Inv, 28);
 
   with self.DefaultItemFilter do
   begin
@@ -1086,6 +1414,11 @@ begin
   end;
 
   WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
+
+  {$IFHASFILE Includes/Recorder/recorder.simba}
+  if self.useRecorder then
+    self.setupRecorder();
+  {$ENDIF}
 end;
 
 //procedure tScript.initRecorder();
@@ -1099,7 +1432,7 @@ end;
 procedure TScript.saveTrade(offerIndex : Int32);
 var i : Int32;
 begin
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].stringify(False, True) + STR_NEW_LINE, True);
+  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].stringify(OfferIndex, False, True) + STR_NEW_LINE, True);
   WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].item.stringify() + STR_NEW_LINE, True);
 
   if self.offers[OfferIndex].globalID > -1 then

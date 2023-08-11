@@ -3,7 +3,7 @@ var
   url, resString : String;
   theClient : Int32;
   JSONMap : tJSONArray;
-  t : Int64;
+  //t : Int64;
 begin
   url := 'https://prices.runescape.wiki/api/v1/osrs/mapping';
 

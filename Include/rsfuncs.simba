@@ -33,14 +33,58 @@ begin
   end;
 end;
 
+function TRSGrandExchange.FindProgressPopup(out b : tBox) : Boolean;
+var
+  yellow : tPointArray;
+  toolTips : t2DPointArray;
+begin
+  if SRL.FindColors(Yellow, CTS1(10551295, 0), self.Bounds()) then
+  begin
+    toolTips := yellow.Cluster(1);
+    toolTips.SortByDensity(False);
+
+    if (length(toolTips) = 0) or (length(toolTips[0]) < 500) then exit();
+
+    b := toolTips[0].bounds();
+    result := True;
+  end;
+end;
+
+function TRSGrandExchange.FindProgressPopup() : Boolean; overload;
+var b : tBox;
+begin
+  result := self.FindProgressPopup(b);
+end;
+
 // Get the next empty slot
 function TRSGrandExchange.nextEmptySlot() : Int32;
+
+  function GetStatus() : array of ERSGEOfferType;
+  var i : Int32;
+  begin
+    setLength(result, 8);
+    for i := 0 to 7 do
+      result[i] := self.GetOfferStatus(i).OfferType;
+  end;
+
 var
   i : Integer;
+  status : array of ERSGEOfferType;
 begin
+  status := GetStatus();
+
   for i := 0 to 7 do
-    if self.GetOfferStatus(i).OfferType = ERSGEOfferType.EMPTY then
+  begin
+    if (status[i] = ERSGEOfferType.UNKNOWN) and self.FindProgressPopup() then
+    begin
+      Mouse.Move(self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+      i := 0;
+      status := GetStatus();
+      continue();
+    end;
+    if status[i] = ERSGEOfferType.EMPTY then
       exit(i);
+  end;
 
   // Fail to -1
   exit(-1);
@@ -60,6 +104,30 @@ begin
   result := self.GetProgress(self.GetOfferSlots()[slotNumber], 105);
 end;
 
+function TRSGrandExchange.GetPreciseProgress(slotNumber : Int32) : Integer;
+var
+  slotBox, progressBox : tBox;
+  progressText : tStringArray;
+begin
+  slotBox := self.GetOfferSlots()[slotNumber];
+  if (not self.FindProgressPopup(progressBox)) and pointInBox(Mouse.Position(), slotBox) then
+  begin
+    Mouse.Move(slotBox.Expand(5).NearestEdge(Mouse.Position()));
+    wait(random(250,400));
+  end;
+
+  if not pointInBox(Mouse.Position(), self.GetOfferSlots()[slotNumber]) then
+  begin
+    Mouse.Move(self.GetOfferSlots()[slotNumber]);
+    waitUntil(self.FindProgressPopup(progressBox), 250, 2000);
+  end;
+
+  progressText := OCR.RecognizeLines(progressBox, TOCRColorFilter.Create([$000000]), RS_FONT_PLAIN_12);
+  if length(progressText) < 2 then exit(-1);
+
+  result := progressText[1].Before('/').ExtractNumber(-1);
+end;
+
 function TRSGrandExchange.IsSlotComplete(slotNumber: Int32): Boolean;
 begin
   result := SRL.CountColor(18944, self.GetOfferSlots()[slotNumber]) > 0;
@@ -72,6 +140,13 @@ function TRSGrandExchange.GetStatus(slotNumber : Int32) : ERSGEOfferStatus;
 var Status : TRSGEOfferStatus;
 begin
   Status := self.GetofferStatus(slotNumber);
+
+  if (Status.OfferType = ERSGEOfferType.UNKNOWN) and self.FindProgressPopup() then
+  begin
+    Mouse.Move(self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+    waitUntil(not self.FindProgressPopup(), 500, 2000);
+    Status := self.GetofferStatus(slotNumber);
+  end;
 
   if Status.OfferType = ERSGEOfferType.EMPTY then exit(ERSGEOfferStatus.EMPTY);
   if Status.OfferType = ERSGEOfferType.UNKNOWN then exit(ERSGEOfferStatus.UNKNOWN);
@@ -203,6 +278,12 @@ begin
     exit(False);
   end;
 
+  if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Visible() and self.FindProgressPopup() then
+  begin
+    Mouse.Move(Self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+    waitUntil(Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Visible(), 100, 1000);
+  end;
+
   if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Click() then
   begin
     if self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.EMPTY then // If the offer is empty but the button couldn't be found (hover covering the button?)
@@ -285,23 +366,27 @@ begin
     result := self.CountItem(Item);
 end;
 
+function TRSInventory.isSlotNoted(slot : Int32) : Boolean;
+begin
+  if not self.IsSlotUsed(slot) then exit(False);
+
+  result := SRL.CountColor(CTS2(9549765, 9, 0.04, 0.94), self.GetSlotBox(slot)) > 50;
+end;
+
+function TRSInventory.GetUptext(slot : Int32) : String;
+begin
+  if not self.IsSlotUsed(slot) then exit();
+
+  Mouse.Move(self.GetSlotBox(slot));
+  waitUntil(MainScreen.GetUpText() <> '', 150, 2000);
+
+  result := MainScreen.GetUpText();
+end;
+
 // Enter -1 for ALL
-function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean;
-var item : String;
+function TRSGrandExchange.CreateSellOffer(invSlot : Int32; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1; uptextCheck: String = '') : Boolean;
 begin
   if not self.IsOpen() then Exit(False);
-
-  item := itemName;
-
-  if (System.ItemFinder.ItemNames.IndexOfName('noted ' + itemName) > -1) and Inventory.ContainsItem('noted ' + itemName) then
-    item := 'noted ' + itemName
-  else
-    if not Inventory.ContainsItem(item) then
-    begin
-      writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
-      takeScreenshot(item + '_notFound.bmp');
-      exit(False);
-    end;
 
   //writeln('Slot Number: ', slotNumber);
   if slotNumber > -1 then
@@ -320,11 +405,16 @@ begin
   end else
     slotNumber := self.NextEmptySlot(); // For checking result at the end only
 
-  if not Inventory.ClickItem(item) then
+  if not Inventory.IsSlotUsed(invSlot) then
   begin
-    writeln('TRSGrandExchange.createSellOffer: Failed to click ', itemName);
+    writeln('TRSGrandExchange.createSellOffer: Nothing exists in that inventory slot');
     exit(False);
   end;
+
+  Inventory.ClickSlot(invSlot);
+
+  if ChooseOption.IsOpen(600) then
+    ChooseOption.Select('Exchange');
 
   if not waitUntil((self.GetItemQuantity > 0), 250, 2000) then
   begin
@@ -332,8 +422,18 @@ begin
     exit(False);
   end;
 
-  if (Inventory.CountItems(ItemName) <> 1) and ((quantity = -1) or (self.GetItemQuantity < quantity))then
-    Self._EnterQuantity(quantity);
+  if uptextCheck <> '' then
+  begin
+    if not (stringMatch(LowerCase(uptextCheck), LowerCase(self.GetItemName())) > 0.8) then
+    begin
+      writeln('TRSGrandExchange.createSellOffer: Incorrect item name, detected "' + self.GetItemName() + '"');
+      exit(False);
+    end;
+  end;
+
+  if quantity <> 0 then
+    if ((quantity = -1) or (self.GetItemQuantity < quantity))then
+      Self._EnterQuantity(quantity);
 
   Self._EnterPrice(price);
 
@@ -345,6 +445,26 @@ begin
   if result then Result := self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE;
 
   writeln('TRSGrandExchange.createSellOffer: Result = ', Result);
+end;
+
+function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean; overload;
+var
+  invSlot : Int32;
+  item : String;
+begin
+  item := itemName;
+
+  if (System.ItemFinder.ItemNames.IndexOfName('noted ' + itemName) > -1) and Inventory.FindItem('noted ' + itemName, invSlot) then
+    item := 'noted ' + itemName
+  else
+    if not Inventory.FindItem(item, InvSlot) then
+    begin
+      writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
+      takeScreenshot(item + '_notFound.bmp');
+      exit(False);
+    end;
+
+  result := self.CreateSellOffer(invSlot, price, quantity, slotNumber, itemName);
 end;
 
 function TRSGrandExchange.OpenActiveOffer(slotNumber: Int32) : Boolean;

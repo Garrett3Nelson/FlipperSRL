@@ -58,7 +58,7 @@ has an item.
 *)
 
 type tGESlot = record(TRSGEOfferStatus)
-  lastProgress : Int32;
+  lastProgress, preciseProgress, lastPreciseProgress : Int32;
 end;
 
   tGESlotArray = Array of tGESlot;
@@ -111,10 +111,11 @@ Tracks all the information for a given offer.
 type tGEOffer = record
   globalID, purchased, toTrade, spent, revenue, waitTime, slotNumber : Int32;
   startTime, lastUpdate : Int64;
-  buyOverride, abandoning, collected, histUpdated : Boolean;
+  buyOverride, abandoning, collected, histUpdated, aborted : Boolean;
   status : String;
   item : tGEItem;
   slot : tGESlot;
+  invSlots : tIntegerArray;
 end;
 
   tGEOfferArray = array of tGEOffer;
@@ -213,8 +214,9 @@ type
     itemList : tStringArray;
     playerCash : Int32;
     coolDown : Boolean;
+    useRecorder, ScreenshotItems : Boolean;
     globalID : Int32;
-    inv : tInventoryArray;
+    Inv : tInventoryArray;
 
     // SRL Related Variables
     RSW : TRSWalker;

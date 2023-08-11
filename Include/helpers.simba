@@ -75,14 +75,16 @@ begin
   end;
 end;
 
-function getIncludeHash() : Int64;
+function getIncludeHash() : String;
 var
   files : tStringArray;
-  f : String;
+  f, contents : String;
 begin
   files := getFiles({$MACRO CURRENT_DIRECTORY}, 'simba');
   for f in files do
-    result += length(readFileContents({$MACRO CURRENT_DIRECTORY} + f));
+    contents += readFileContents({$MACRO CURRENT_DIRECTORY} + f);
+
+  result := SHA1String(contents);
 end;
 
 procedure SaveItemMap(ItemMap: tItemMapArray);
@@ -107,4 +109,29 @@ begin
 
   WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'map.csv', StringA.Merge(STR_NEW_LINE) , False);
 end;
+
+procedure SaveCroppedBitmap(fileName : String; cropBox : tBox);
+var
+  mbmp : tMufasaBitmap;
+begin
+  mbmp := getMufasaBitmap(bitmapFromClient(cropBox.X1, cropBox.Y1, cropBox.X2, cropBox.Y2));
+  mbmp.SaveToFile(fileName);
+  mbmp.Free();
+end;
+
+{$IFHASFILE Includes/WaspLib/utils/recorder/recorder.simba}
+procedure tScript.SetupRecorder();
+var
+  userB, expB: TBox;
+begin
+  userB := Chat.GetDisplayNameBox();
+  if userB = Chat.GetLineBoxes()[CHAT_INPUT_LINE] then
+    userB := [];
+
+  XPBar.Read();
+  expB := XPBar.Bounds();
+
+  Recorder.Start(30, {$MACRO CURRENT_DIRECTORY} + 'Video', userB, expB);
+end;
+{$ENDIF}
 
