@@ -1415,6 +1415,15 @@ begin
 
   WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
 
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots');
+
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + + DirectorySeparator + 'Items') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + + DirectorySeparator + 'Items');
+
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Video') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Video');
+
   {$IFHASFILE Includes/Recorder/recorder.simba}
   if self.useRecorder then
     self.setupRecorder();
