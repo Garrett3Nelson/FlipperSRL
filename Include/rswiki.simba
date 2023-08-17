@@ -115,6 +115,7 @@ begin
     begin
       self.itemID := item.ID;
       self.limit := item.Limit;
+      self.market := round((item.AvgHigh + item.AvgLow)/2);
       exit(True);
     end;
   end;

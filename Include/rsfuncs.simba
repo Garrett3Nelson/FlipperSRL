@@ -56,6 +56,12 @@ begin
   result := self.FindProgressPopup(b);
 end;
 
+procedure TRSGrandExchange.MouseOffSlots();
+begin
+  Mouse.Move(self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+end;
+
+
 // Get the next empty slot
 function TRSGrandExchange.nextEmptySlot() : Int32;
 
@@ -77,7 +83,7 @@ begin
   begin
     if (status[i] = ERSGEOfferType.UNKNOWN) and self.FindProgressPopup() then
     begin
-      Mouse.Move(self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+      self.MouseOffSlots();
       i := 0;
       status := GetStatus();
       continue();
@@ -112,7 +118,7 @@ begin
   slotBox := self.GetOfferSlots()[slotNumber];
   if (not self.FindProgressPopup(progressBox)) and pointInBox(Mouse.Position(), slotBox) then
   begin
-    Mouse.Move(slotBox.Expand(5).NearestEdge(Mouse.Position()));
+    self.MouseOffSlots();
     wait(random(250,400));
   end;
 
@@ -133,6 +139,47 @@ begin
   result := SRL.CountColor(18944, self.GetOfferSlots()[slotNumber]) > 0;
 end;
 
+function TRSGrandExchange.ReturnToMain() : Boolean;
+
+  // Finder for the back arrow
+  function findArrow() : tBox;
+  var
+    TPA : tPointArray;
+    ATPA : T2DPointArray;
+    arrowColor : TCTS2Color;
+    B : tBox;
+    W, H : Int32;
+  begin
+    arrowColor := CTS2(10791348, 18, 0.11, 0.22);
+    SRL.FindColors(TPA, arrowColor, grandExchange.Bounds());
+
+    if length(TPA) = 0 then Exit();
+
+    ATPA := TPA.Cluster(1);
+
+    //debug(ATPA);
+    for TPA in ATPA do
+    begin
+      //if Length(TPA) > 75 then
+      //  Continue;
+
+      B := TPA.Bounds();
+      B.GetDimensions(W, H);
+      //Writeln(W, ', ', H);
+      //Writeln(length(TPA));
+
+      if inRange(W, 20, 30) and inRange(H, 10, 20) then
+        exit(B);
+    end;
+  end;
+
+begin
+  if self.GetCurrentInterface() = ERSGEInterface.OVERVIEW then exit(True);
+
+  Mouse.Click(findArrow().Middle().Random(0,3), MOUSE_LEFT);
+  Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+end;
+
 type
   ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
 
@@ -141,10 +188,11 @@ var Status : TRSGEOfferStatus;
 begin
   Status := self.GetofferStatus(slotNumber);
 
-  if (Status.OfferType = ERSGEOfferType.UNKNOWN) and self.FindProgressPopup() then
+  if (Status.OfferType = ERSGEOfferType.UNKNOWN) then
   begin
-    Mouse.Move(self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+    self.MouseOffSlots();
     waitUntil(not self.FindProgressPopup(), 500, 2000);
+    wait(Random(250,600));
     Status := self.GetofferStatus(slotNumber);
   end;
 
@@ -265,7 +313,6 @@ begin
 end;
 
 function TRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1) : Boolean;
-var backupButton : tBox;
 begin
   if not self.IsOpen() then Exit(False);
 
@@ -274,6 +321,7 @@ begin
 
   if slotNumber = -1 then
   begin
+    self.DebugInterface('NoSlots.bmp');
     writeln('TRSGrandExchange.createBuyOffer: No empty slots');
     exit(False);
   end;
@@ -286,29 +334,10 @@ begin
 
   if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Click() then
   begin
-    if self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.EMPTY then // If the offer is empty but the button couldn't be found (hover covering the button?)
-    begin
-      // The manual way of defining the buy button
-      backupButton := Self.GetOfferSlots()[slotNumber];
-      backupButton.X1 += 7;
-      backupButton.Y1 += 44;
-      backupButton.X2 -= 62;
-      backupButton.Y2 -= 21;
-
-      Mouse.Click(backupButton, MOUSE_LEFT);
-
-      if not waitUntil(self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS, 250,3000) then
-      begin
-        writeln('TRSGrandExchange.createBuyOffer: Backup Button Failed');
-        //takeScreenshot('backupbutton.png');
-        exit(False);
-      end;
-    end else
-    begin
-      writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
-      //takeScreenshot('buybutton.png');
-      exit(False);
-    end;
+    self.DebugInterface('BuyButton.bmp');
+    writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
+    //takeScreenshot('buybutton.png');
+    exit(False);
   end;
 
   WaitUntil(Self.IsSearchOpen(), 500, 2500);
@@ -339,6 +368,7 @@ begin
       result := waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE, 250, 4000)
     else
     begin
+      self.DebugInterface('ConfirmButton.bmp');
       writeln('TRSGrandExchange.createBuyOffer: Failed to click confirm button');
       exit(False);
     end;
@@ -346,6 +376,7 @@ begin
     writeln('TRSGrandExchange.createBuyOffer: Result = ' ,Result);
   end else
   begin
+    self.DebugInterface('Quantity.bmp');
     writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
     exit(False);
   end;
@@ -378,9 +409,27 @@ begin
   if not self.IsSlotUsed(slot) then exit();
 
   Mouse.Move(self.GetSlotBox(slot));
+  wait(400,600);
   waitUntil(MainScreen.GetUpText() <> '', 150, 2000);
 
   result := MainScreen.GetUpText();
+end;
+
+function TRSInventory.GetUptext(slot : Int32; rightClick: Boolean) : String; overload;
+var opts : TRSChooseOption_OptionArray;
+begin
+  if not self.IsSlotUsed(slot) then exit();
+
+  Mouse.Click(self.GetSlotBox(slot), MOUSE_RIGHT);
+  wait(400,600);
+  waitUntil(chooseOption.isOpen, 150, 2000);
+
+  opts := ChooseOption.GetOptions();
+
+  ChooseOption.Close();
+  if length(opts) = 0 then exit();
+
+  result := opts[0].Text;
 end;
 
 // Enter -1 for ALL
@@ -393,6 +442,7 @@ begin
   begin
     if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Click() then
     begin
+      self.DebugInterface('SellButton.bmp');
       writeln('TRSGrandExchange.createSellOffer: Failed to click sell button');
       exit(False);
     end;
@@ -407,7 +457,8 @@ begin
 
   if not Inventory.IsSlotUsed(invSlot) then
   begin
-    writeln('TRSGrandExchange.createSellOffer: Nothing exists in that inventory slot');
+    writeln('TRSGrandExchange.createSellOffer: Nothing exists in inventory slot ' + toStr(InvSlot));
+    takeScreenshot('NotIn_' + toStr(InvSlot) + '.bmp');
     exit(False);
   end;
 
@@ -418,6 +469,7 @@ begin
 
   if not waitUntil((self.GetItemQuantity > 0), 250, 2000) then
   begin
+    self.DebugInterface('NoQuantity.bmp');
     writeln('TRSGrandExchange.createSellOffer: Offer quantity did not show up');
     exit(False);
   end;
@@ -440,9 +492,11 @@ begin
   wait(random(400,800));
 
   if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
-    result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000);
+    result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000)
+  else
+    self.DebugInterface('ConfirmButton.bmp');
 
-  if result then Result := self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE;
+  //if result then Result := self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE;
 
   writeln('TRSGrandExchange.createSellOffer: Result = ', Result);
 end;
@@ -521,7 +575,7 @@ function TRSGrandExchange.CollectOffer(slotNumber : Int32) : Boolean; overload;
     while t > getSystemTime() do
     begin
       Mouse.Click(b, MOUSE_LEFT, True);
-      if result := waitUntil((SRL.CountColor(RS_ITEM_BORDER, b) = 0), 200, 800) then exit();
+      if result := waitUntil((SRL.CountColor(RS_ITEM_BORDER, b) = 0), 200, 2000) then exit();
     end;
   end;
 
@@ -611,45 +665,36 @@ begin
   writeln('GrandExchange: Abort Slot ', slotNumber, ': ', result);
 end;
 
-function TRSGrandExchange.ReturnToMain() : Boolean;
+function tRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1; loops : Int32) : Boolean; overload;
+begin
+  if slotNumber = -1 then
+    slotNumber := self.NextEmptySlot();
 
-  // Finder for the back arrow
-  function findArrow() : tBox;
-  var
-    TPA : tPointArray;
-    ATPA : T2DPointArray;
-    arrowColor : TCTS2Color;
-    B : tBox;
-    W, H : Int32;
+  if slotNumber = -1 then
   begin
-    arrowColor := CTS2(10791348, 18, 0.11, 0.22);
-    SRL.FindColors(TPA, arrowColor, grandExchange.Bounds());
-
-    if length(TPA) = 0 then Exit();
-
-    ATPA := TPA.Cluster(1);
-
-    //debug(ATPA);
-    for TPA in ATPA do
-    begin
-      //if Length(TPA) > 75 then
-      //  Continue;
-
-      B := TPA.Bounds();
-      B.GetDimensions(W, H);
-      //Writeln(W, ', ', H);
-      //Writeln(length(TPA));
-
-      if inRange(W, 20, 30) and inRange(H, 10, 20) then
-        exit(B);
-    end;
+    writeln('TRSGrandExchange.createBuyOffer: No empty slots');
+    exit(False);
   end;
 
-begin
-  if self.GetCurrentInterface() = ERSGEInterface.OVERVIEW then exit(True);
+  for 1 to loops do
+  begin
+    if self.CreateBuyOffer(itemName, price, quantity, slotNumber) then exit(True);
 
-  Mouse.Click(findArrow().Middle().Random(0,3), MOUSE_LEFT);
-  Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+    self.ReturnToMain();
+    waitUntil(self.GetStatus(slotNumber) <> ERSGEOfferStatus.EMPTY, 250, 2500);
+
+    if self.GetStatus(slotNumber) = ERSGEOfferStatus.ABORTED then
+    begin
+      self.collectOffer(slotNumber);
+      if waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.EMPTY, 250, 2500) then continue
+      else
+      begin
+        writeln('TRSGrandExchange.createBuyOffer: Offer was aborted on init and could not be collected');
+        takeScreenshot(itemName + '_abortedOnStart.bmp');
+        exit(False);
+      end;
+    end;
+  end;
 end;
 
 function TRSGrandExchange.changeTab(toHistory: Boolean = True) : Boolean;

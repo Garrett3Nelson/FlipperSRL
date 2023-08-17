@@ -114,9 +114,102 @@ procedure SaveCroppedBitmap(fileName : String; cropBox : tBox);
 var
   mbmp : tMufasaBitmap;
 begin
-  mbmp := getMufasaBitmap(bitmapFromClient(cropBox.X1, cropBox.Y1, cropBox.X2, cropBox.Y2));
+  mbmp.FromClient([cropBox.X1, cropBox.Y1, cropBox.X2, cropBox.Y2]);
   mbmp.SaveToFile(fileName);
   mbmp.Free();
+end;
+
+function tRSGrandExchange.GetInterfaceBoxes() : tBoxArray;
+var
+  buttons : tRSButtonArray;
+  i : Int32;
+begin
+  case self.GetCurrentInterface() of
+    ERSGEInterface.OVERVIEW:
+    begin
+      buttons := self.GetOverviewButtons();
+      for i := 0 to 7 do
+        if self.GetOfferStatus(i).OfferType = ERSGEOfferType.EMPTY then
+          buttons += self.GetOfferCreateButtons(i);
+    end;
+    ERSGEInterface.OFFER_STATUS:
+      buttons := self.GetOfferStatusButtons();
+    ERSGEInterface.OFFER_SETUP:
+      buttons := self.GetSetupOfferButtons();
+  end;
+
+  if length(buttons) = 0 then exit();
+  for i := 0 to high(buttons) do
+    result.append(buttons[i].Bounds);
+end;
+
+procedure tRSGrandExchange.DebugInterface(fileName : String);
+var
+  mBitmap : tMufasaBitmap;
+  ATPA : T2DPointArray;
+  tBoxes : tBoxArray;
+  i : Int32;
+begin
+  mBitmap.FromClient();
+
+  tBoxes := self.GetInterfaceBoxes();
+  SetLength(ATPA, Length(tBoxes));
+  for I := 0 to High(ATPA) do
+    ATPA[I] := EdgeFromBox(tBoxes[I]);
+
+  for I := 0 to High(ATPA) do
+    mBitmap.DrawTPA(ATPA[I], DEBUG_COLORS[I mod Length(DEBUG_COLORS)]);
+
+  mBitmap.SaveToFile({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator + FormatDateTime('yymmdd_hhmmss', Now()) + '_' + fileName);
+  mBitmap.Free();
+end;
+
+
+// Helper function for finding the new OSRS Window after RemoteInput pairs
+// Example: NewWindow := FindRSWindow(GetSimbaTargetPID());
+function FindRSWindow(targetPID : Int32 = -1) : tOSWindow;
+var
+  Root, Child: TOSWindow;
+  windowBox : tBox;
+  windowWidth, curWidth : Integer;
+begin
+  for Root in GetVisibleWindows() do
+  begin
+    // The PID doesn't change after RemoteInput pairs
+    if (targetPID > 0) and (targetPID <> Root.GetPID()) then continue;
+
+    // Only works for vanilla client with this filter
+    if (Root.GetTitle() = 'Old School RuneScape') then
+    begin
+      {$IFDEF WINDOWS}
+      for Child in Root.GetChildren() do
+        if (Child.GetClassName() = 'SunAwtCanvas') then
+        begin
+          // get size of this child window
+          windowBox := Child.GetBounds();
+
+          // The main RS window is the narrowest
+          windowWidth := windowBox.X2 - windowBox.X1;
+
+          if (windowWidth < curWidth) or (curWidth = 0) then
+          begin
+            curWidth := windowWidth;
+            result := Child;
+          end;
+        end;
+      {$ELSE}
+      begin
+        // Handle linux later
+        exit();
+      end;
+      {$ENDIF}
+    end;
+  end;
+end;
+
+procedure Recorder.Start(seconds: Integer; directory: String; userBox, expBox: TBox = []); static; override;
+begin
+  Recorder.Start(FindRSWindow(getSimbaTargetPID()), seconds, directory, userBox, expBox);
 end;
 
 procedure tScript.SetupRecorder();

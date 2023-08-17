@@ -363,7 +363,16 @@ Updates the slot from mainscreen information.
 procedure tGEOffer.updateSlot();
 begin
   if self.slotNumber > -1 then
+  begin
     self.slot.update(grandExchange.GetOfferStatus(self.slotNumber));
+    if  self.slot.OfferType = ERSGEOfferType.UNKNOWN then
+    begin
+      takeScreenshot('slot'+toStr(self.slotNumber)+'_unknown.png');
+      grandExchange.MouseOffSlots();
+      wait(random(400,800));
+      self.slot.update(grandExchange.GetOfferStatus(self.slotNumber));
+    end;
+  end;
 end;
 
 procedure tGEOfferArray.updateSlots();
@@ -707,8 +716,11 @@ end;
 procedure tInventoryArray.ClearSlots(slots : tIntegerArray);
 var i : Int32;
 begin
+  print('Clearing inventory slots ' + toStr(slots));
   for i := 0 to high(slots) do
     self[slots[i]].reset();
+
+  self.debug();
 end;
 
 function tInventoryArray.HasUpdated() : Boolean;
@@ -788,7 +800,11 @@ begin
   setLength(namesToMatch, length(GESlot));
 
   for i := 0 to high(InvSlot) do
-    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/'));
+  begin
+    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/').replace('_', ''));
+    if length(invUptext) < 3 then
+      invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer'));
+  end;
 
   for i := 0 to high(GESlot) do
     namesToMatch[i] := lowercase(self.offers[GESlot[i]].item.name.replace(' ', ''));
@@ -806,17 +822,31 @@ begin
         matchIndex := j;
       end;
 
-    print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')');
-    self.offers[GESlot[matchIndex]].InvSlots.Append(invSlot[i]);
-    self.Inv[invSlot[i]] := newInv[invSlot[i]];
-    self.Inv[invSlot[i]].name := self.offers[GESlot[matchIndex]].item.name;
+    if not (bestMatch > 0.7) then
+    begin
+      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + invUpText[i] + ')');
+      if not Inventory.IsSlotUsed(InvSlot[i]) then
+      begin
+        print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching');
+        takeScreenshot('InvSlot'+toStr(InvSlot[i]));
+        invslot.Del(i, 1);
+        bestMatch := -1.0;
+        matchIndex := -1;
+      end;
+    end else
+    begin
+      print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')');
+      self.offers[GESlot[matchIndex]].InvSlots.Append(invSlot[i]);
+      self.Inv[invSlot[i]] := newInv[invSlot[i]];
+      self.Inv[invSlot[i]].name := self.offers[GESlot[matchIndex]].item.name;
 
-    GESlot.Del(matchIndex, 1);
-    namesToMatch.Del(matchIndex, 1);
-    invslot.Del(i, 1);
+      GESlot.Del(matchIndex, 1);
+      namesToMatch.Del(matchIndex, 1);
+      invslot.Del(i, 1);
 
-    bestMatch := -1.0;
-    matchIndex := -1;
+      bestMatch := -1.0;
+      matchIndex := -1;
+    end;
   end;
 
   if resetProgress and (length(GESlot) > 0) then
@@ -826,38 +856,6 @@ begin
       self.offers[GESlot[i]].slot.preciseProgress := self.offers[GESlot[i]].slot.LastPreciseProgress;
   end;
 end;
-
-//function tScript.slotsBestMatches(GESlot, InvSlot : TIntegerArray) : tIntegerArray;
-//var
-//  i, j : Int32;
-//  InvUptext : tStringArray;
-//  matches : tExtendedArray;
-//begin
-//  setLength(InvUpText, length(InvSlot));
-//  setLength(matches, length(InvSlot));
-//  setLength(result, length(InvSlot));
-//
-//  for i := 0 to high(InvSlot) do
-//    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/'));
-//
-//  // It shouldn't get here unless InvSlot is at least 1 less than GESlot (less inv found than there are potential GE slots collected)
-//  for i := 0 to high(InvSlot) do
-//  begin
-//    matches[i] := StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]);
-//    result[i] := GESlot[0];
-//    if length(GESlot) = 1 then break();
-//
-//    for j := 1 to high(GESlot) do
-//      if (StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]) > matches[i]) then
-//      begin
-//        matches[i] := StringMatch(lowercase(self.offers[GESlot[j]].item.name.replace(' ', '')), invUpText[i]);
-//        result[i] := GESlot[i];
-//      end;
-//
-//
-//    GESlot.Del(GESlot.Find(result[i]), 1);
-//  end;
-//end;
 
 function tScript.FindOfferByInv(invSlot : Int32) : Int32;
 var i, j : Int32;
@@ -917,7 +915,7 @@ begin
   changedInv := self.Inv.GetUpdated(newInv, newSlots);
   if length(ChangedInv) = 0 then exit();
 
-  print('Changed Inv Slots:');
+  print('Changed Inv Slots: ' + toStr(ChangedInv));
   for i := 0 to high(changedInv) do
   begin
     print('Old Inventory: ' + self.inv[changedInv[i]].stringify(changedInv[i]));
@@ -973,6 +971,10 @@ begin
     end;
   end;
 
+  for slot := 0 to 27 do
+    if (not slot in ChangedInv) and (self.Inv[slot].exists and (self.Inv[slot].name = '')) then
+      changedInv.append(slot);
+
   if length(changedInv) = 0 then
   begin
     for i := 0 to high(slotsToMatch) do
@@ -990,15 +992,16 @@ begin
   print('ChangedInv = ' + toStr(ChangedInv));
   print('slotsToMatch = ' + toStr(slotsToMatch));
 
-  if length(changedInv) > (length(slotsToMatch) + length(slotsToSkip)) then
-    print('There are too many items in the inventory to match to slots', eDebugType.FATAL);
+  //if length(changedInv) > (length(slotsToMatch) + length(slotsToSkip)) then
+  //  print('There are too many items in the inventory to match to slots', eDebugType.FATAL);
 
   self.SlotsBestMatches(slotsToMatch, changedInv, newInv);
 
-  if (length(changedInv) > 0) and (length(slotsToSkip) > 0) then
+  if (length(changedInv) > 0) then //and (length(slotsToSkip) > 0) then
   begin
-    print('Some inventory is still not matched, rechecking updated slots to see if a double collection happened');
-    self.SlotsBestMatches(slotsToSkip, changedInv, newInv, False);
+    print('Some inventory is still not matched, rechecking all slots to see if a double collection happened');
+    //self.SlotsBestMatches(slotsToSkip, changedInv, newInv, False);
+    self.SlotsBestMatches(sortedOffers, changedInv, newInv, False);
   end;
 
   for slot := 0 to 27 do
@@ -1087,7 +1090,7 @@ var
   tempName : String;
   Items: TStringList;
 begin
-  Items := getSortedItemNamesOnly();
+  //Items := getSortedItemNamesOnly();
 
   setLength(result, self.length());
   for i := 0 to self.length() - 1 do
@@ -1101,7 +1104,7 @@ begin
       p := pos(' (tablet)', tempName);
       if p > 0 then setLength(tempName, p-1);
 
-      if (Items.IndexOf(tempName) = -1) then continue;
+      //if (Items.IndexOf(tempName) = -1) then continue;
 
       result[count] := [tempJSON.getInt('id'), tempJSON.getInt('limit'), 0, 0, 0, 0, 0, 0, tempName, 0.0, 0.0];
       inc(count);
