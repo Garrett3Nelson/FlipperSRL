@@ -42,15 +42,33 @@ function smartStringMatch(source, target : String; diff : Integer) : Boolean;
 var
   strLen : Integer;
   matchDiff, allowable : Extended;
-  trimSource, trimTar : String;
+  trimLong, trimShort : String;
 begin
   source := trimBad(source, target);
-  trimSource := trim(replace(source, ' ', '', [rfReplaceAll]));
-  trimTar := trim(replace(target, ' ', '', [rfReplaceAll]));
+  source := trim(replace(source, ' ', '', [rfReplaceAll]));
+  target := trim(replace(target, ' ', '', [rfReplaceAll]));
 
-  strLen := length(trimTar);
-  matchDiff := stringMatch(trimSource, trimTar);
-  allowable := 1.0 - (diff / strLen);
+  if length(target) >= length(source) then
+  begin
+    trimLong := target;
+    trimShort := source;
+  end else
+  begin
+    trimLong := source;
+    trimShort := target;
+  end;
+
+  strLen := length(trimLong);
+  if strLen <= diff then
+  begin
+    print('WARNING: SmartStringMatch - Diff is bigger than the length of the string to match');
+    print('Target: ' + target);
+    print('Source: ' + Source);
+  end;
+
+  allowable :=  max(1.0 - (diff / strLen), 0.5);
+
+  matchDiff := stringMatch(trimShort, trimLong);
 
   result := matchDiff >= allowable;
 end;

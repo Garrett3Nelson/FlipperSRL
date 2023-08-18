@@ -1105,6 +1105,7 @@ begin
       if p > 0 then setLength(tempName, p-1);
 
       //if (Items.IndexOf(tempName) = -1) then continue;
+      if system.length(tempName) < 3 then continue;
 
       result[count] := [tempJSON.getInt('id'), tempJSON.getInt('limit'), 0, 0, 0, 0, 0, 0, tempName, 0.0, 0.0];
       inc(count);
@@ -1171,7 +1172,7 @@ function tScript.CreateFilteredList() : tStringArray;
 var
   i, needed: Int32;
 begin
-  needed := 4 * round(60/(self.UserItemFilter.MinVolumeFactor*2));
+  needed := max(50, 32 * round(2/self.UserItemFilter.MinVolumeFactor));
 
   for i := 0 to high(self.ItemMap) do
   begin
