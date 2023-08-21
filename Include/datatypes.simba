@@ -178,7 +178,7 @@ itemID, name, market, buy/sell, margin, and limit.
 
 procedure tGEItem.debug();
 begin
-  print(self.stringify());
+  print(self.stringify(), eDebugType.DEV);
 end;
 
  (*
@@ -213,7 +213,7 @@ slot number, status, last progress.
 
 procedure tGESlot.debug();
 begin
-  print(toStr(self));
+  print(toStr(self), eDebugType.DEV);
 end;
 
 function tGEOffer.stringify(i : Int32; collected : Boolean = True; full: Boolean = False) : String;
@@ -239,7 +239,7 @@ tradeID, status, toTrade, and purchased.
 
 procedure tGEOffer.debug(i : Int32);
 begin
-  print(self.stringify(i));
+  print(self.stringify(i), eDebugType.DEV);
   self.item.debug();
   self.slot.debug();
 end;
@@ -361,17 +361,12 @@ Updates the slot from mainscreen information.
 *)
 
 procedure tGEOffer.updateSlot();
+var Status : TRSGEOfferStatus;
 begin
   if self.slotNumber > -1 then
   begin
-    self.slot.update(grandExchange.GetOfferStatus(self.slotNumber));
-    if  self.slot.OfferType = ERSGEOfferType.UNKNOWN then
-    begin
-      takeScreenshot('slot'+toStr(self.slotNumber)+'_unknown.png');
-      grandExchange.MouseOffSlots();
-      wait(random(400,800));
-      self.slot.update(grandExchange.GetOfferStatus(self.slotNumber));
-    end;
+    grandExchange.GetStatus(self.SlotNumber, status);
+    self.slot.update(status);
   end;
 end;
 
@@ -402,7 +397,7 @@ end;
 
 procedure tGEHistory.debug();
 begin
-  print(self.stringify());
+  print(self.stringify(), eDebugType.DEV);
 end;
 
 procedure tGEHistoryArray.debug();
@@ -634,10 +629,10 @@ begin
   grandExchange.changeTab(False);
   wait(random(400,800));
 
-  print('New History Debug');
+  print('New History Debug', eDebugType.DEV);
   newHistory.debug();
 
-  print('Old History Debug');
+  print('Old History Debug', eDebugType.DEV);
   self.debug();
 
   self.match(newHistory);
@@ -646,7 +641,7 @@ begin
     for i := 0 to high(self) do
       self[i].firstPass := True;
 
-  print('Post-Match Debug');
+  print('Post-Match Debug', eDebugType.DEV);
   self.debug();
 end;
 
@@ -657,7 +652,7 @@ end;
 
 procedure tInventorySlot.debug(slotNum : Int32);
 begin
-  print(self.stringify(slotNum));
+  print(self.stringify(slotNum), eDebugType.DEV);
 
 end;
 
@@ -694,6 +689,10 @@ begin
 
   for i := 0 to 27 do
     self[i].GetCurrent(i);
+
+  // Check 2x for any that are missed because of the glow effect
+  for i := 0 to 27 do
+    if not self[i].exists then self[i].GetCurrent(i);
 end;
 
 function tInventorySlot.IsUpdated(slot : tInventorySlot) : Boolean;
@@ -716,7 +715,7 @@ end;
 procedure tInventoryArray.ClearSlots(slots : tIntegerArray);
 var i : Int32;
 begin
-  print('Clearing inventory slots ' + toStr(slots));
+  print('Clearing inventory slots ' + toStr(slots), eDebugType.DEV);
   for i := 0 to high(slots) do
     self[slots[i]].reset();
 
@@ -781,20 +780,20 @@ begin
   end;
 end;
 
-procedure tScript.slotsBestMatches(GESlot : tIntegerArray; var InvSlot : TIntegerArray; newInv : tInventoryArray; resetProgress : Boolean = True);
+procedure tScript.slotsBestMatches(var GESlot : tIntegerArray; var InvSlot : TIntegerArray; newInv : tInventoryArray; resetProgress : Boolean = True);
 var
   i, j, matchIndex : Int32;
   bestMatch : Extended;
   InvUptext, namesToMatch : tStringArray;
 begin
-  if (length(GESlot) = 1) and (length(InvSlot) = 1) then
-  begin
-    self.offers[GESlot[0]].InvSlots.Append(invSlot[0]);
-    self.Inv[invSlot[0]] := newInv[invSlot[0]];
-    self.Inv[invSlot[0]].name := self.offers[GESlot[0]].item.name;
-    invslot.Del(i, 1);
-    exit();
-  end;
+  //if (length(GESlot) = 1) and (length(InvSlot) = 1) then
+  //begin
+  //  self.offers[GESlot[0]].InvSlots.Append(invSlot[0]);
+  //  self.Inv[invSlot[0]] := newInv[invSlot[0]];
+  //  self.Inv[invSlot[0]].name := self.offers[GESlot[0]].item.name;
+  //  invslot.Del(i, 1);
+  //  exit();
+  //end;
 
   setLength(InvUpText, length(InvSlot));
   setLength(namesToMatch, length(GESlot));
@@ -803,17 +802,17 @@ begin
   begin
     invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/').replace('_', ''));
     if length(invUptext) < 3 then
-      invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer'));
+      invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer').replace('_', ''));
   end;
 
   for i := 0 to high(GESlot) do
-    namesToMatch[i] := lowercase(self.offers[GESlot[i]].item.name.replace(' ', ''));
+    namesToMatch[i] := lowercase(self.offers[GESlot[i]].item.name);
 
   for i := high(InvSlot) downto 0 do
   begin
     if length(GESlot) = 0 then break();
 
-    print('Attempting to match Inventory Slots ' + toStr(invslot) + ' with Offer Indices ' + toStr(geslot));
+    print('Attempting to match Inventory Slots ' + toStr(invslot) + ' with Offer Indices ' + toStr(geslot), eDebugType.DEV);
 
     for j := 0 to high(GESlot) do
       if (StringMatch(namesToMatch[j], invUpText[i]) > bestMatch) then
@@ -824,10 +823,10 @@ begin
 
     if not (bestMatch > 0.7) then
     begin
-      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + invUpText[i] + ')');
+      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + invUpText[i] + ')', eDebugType.DEV);
       if not Inventory.IsSlotUsed(InvSlot[i]) then
       begin
-        print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching');
+        print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching', eDebugType.DEV);
         takeScreenshot('InvSlot'+toStr(InvSlot[i]));
         invslot.Del(i, 1);
         bestMatch := -1.0;
@@ -835,7 +834,7 @@ begin
       end;
     end else
     begin
-      print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')');
+      print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')', eDebugType.DEV);
       self.offers[GESlot[matchIndex]].InvSlots.Append(invSlot[i]);
       self.Inv[invSlot[i]] := newInv[invSlot[i]];
       self.Inv[invSlot[i]].name := self.offers[GESlot[matchIndex]].item.name;
@@ -851,7 +850,7 @@ begin
 
   if resetProgress and (length(GESlot) > 0) then
   begin
-    print('The following Offer Indices were not matched: ' + toStr(GESlot));
+    print('The following Offer Indices were not matched: ' + toStr(GESlot), eDebugType.DEV);
     for i := 0 to high(GESlot) do
       self.offers[GESlot[i]].slot.preciseProgress := self.offers[GESlot[i]].slot.LastPreciseProgress;
   end;
@@ -913,22 +912,34 @@ begin
 
   newInv.getCurrent();
   changedInv := self.Inv.GetUpdated(newInv, newSlots);
+
+  for slot := 0 to 27 do
+    if ((newInv[slot].exists or self.Inv[slot].exists) and (self.Inv[slot].name = "")) then
+    begin
+      if not slot in ChangedInv then
+        print('Found additional changed inv slot ' + toStr(slot), eDebugType.DEV);
+
+      changedInv.append(slot);
+    end;
+
+  ChangedInv.ClearDuplicates();
+
   if length(ChangedInv) = 0 then exit();
 
-  print('Changed Inv Slots: ' + toStr(ChangedInv));
+  print('Changed Inv Slots: ' + toStr(ChangedInv), eDebugType.DEV);
   for i := 0 to high(changedInv) do
   begin
-    print('Old Inventory: ' + self.inv[changedInv[i]].stringify(changedInv[i]));
-    print('New Inventory: ' + newInv[changedInv[i]].stringify(changedInv[i]));
+    print('Old Inventory: ' + self.inv[changedInv[i]].stringify(changedInv[i]), eDebugType.DEV);
+    print('New Inventory: ' + newInv[changedInv[i]].stringify(changedInv[i]), eDebugType.DEV);
   end;
 
   for slot := 0 to 7 do
     //if sortedOffers[slot] in slotsToMatch then
-    if length(self.offers[sortedOffers[slot]].invSlots) > 0 then
+    if (grandExchange.GetStatus(slot) <> ERSGEOfferStatus.EMPTY) and (length(self.offers[sortedOffers[slot]].invSlots) > 0) then
       for i := 0 to high(self.offers[sortedOffers[slot]].invSlots) do
         if self.offers[sortedOffers[slot]].invSlots[i] in changedInv then
         begin
-          print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]));
+          print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]), eDebugType.DEV);
           self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].count := newInv[self.offers[sortedOffers[slot]].invSlots[i]].count;
           self.offers[sortedOffers[slot]].slot.preciseProgress := grandExchange.GetPreciseProgress(self.offers[sortedOffers[slot]].slotNumber);
 
@@ -938,17 +949,36 @@ begin
         end;
 
   slotsToMatch := self.offers.ListCollectedBuys();
+
+  print('ChangedInv = ' + toStr(ChangedInv), eDebugType.DEV);
+  print('slotsToMatch = ' + toStr(slotsToMatch), eDebugType.DEV);
+
+  // Keep track of what was in slotsToMatch, if they're all matched, skip them all
+  slotsToSkip += slotsToMatch;
+
+  self.SlotsBestMatches(slotsToMatch, changedInv, newInv);
+
+  // If there were only new slots matched to new inventory, no need to continue checking slot progress
+  if length(changedInv) = 0 then exit();
+
+  // Any slots still left in SlotsToMatch shouldn't be skipped
+  if length(slotsToSkip) > 0 then
+    for slot := high(slotsToSkip) downto 0 do
+      if slotsToSkip[slot] in slotsToMatch then
+        slotsToSkip.Del(slot);
+
   for slot := 0 to 7 do
   begin
     if sortedOffers[slot] in slotsToSkip then continue;
-    if self.offers[sortedOffers[slot]].collected or (not (self.offers[sortedOffers[slot]].status = 'buying')) then continue;
+    if self.offers[sortedOffers[slot]].collected or (not (self.offers[sortedOffers[slot]].status = 'buying'))
+    or (grandExchange.GetStatus(self.offers[sortedOffers[slot]].slotNumber) = ERSGEOfferStatus.EMPTY) then continue;
 
     self.offers[sortedOffers[slot]].slot.lastPreciseProgress := oldProgress := self.offers[sortedOffers[slot]].slot.preciseProgress;
     self.offers[sortedOffers[slot]].slot.preciseProgress := grandExchange.GetPreciseProgress(self.offers[sortedOffers[slot]].slotNumber);
 
     if self.offers[sortedOffers[slot]].slot.preciseProgress > oldProgress then
     begin
-      print('Found progress change in offer: ' + toStr(sortedOffers[slot]));
+      print('Found progress change in offer: ' + toStr(sortedOffers[slot]), eDebugType.DEV);
 
       // Double check that ChangedInv didn't miss anything, and run through the existing slots for this item
       if length(self.offers[sortedOffers[slot]].invSlots) > 0 then
@@ -957,7 +987,7 @@ begin
         for i := 0 to high(self.offers[sortedOffers[slot]].invSlots) do
           if self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].isUpdated(self.offers[sortedOffers[slot]].invSlots[i]) then
           begin
-            print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]));
+            print('Updating existing invSlot in offer: ' + toStr(sortedOffers[slot]), eDebugType.DEV);
             self.Inv[self.offers[sortedOffers[slot]].invSlots[i]].count := newInv[self.offers[sortedOffers[slot]].invSlots[i]].count;
             if changedInv.Find(self.offers[sortedOffers[slot]].invSlots[i]) then
               changedInv.Del(changedInv.Find(self.offers[sortedOffers[slot]].invSlots[i]), 1);
@@ -971,10 +1001,6 @@ begin
     end;
   end;
 
-  for slot := 0 to 27 do
-    if (not slot in ChangedInv) and (self.Inv[slot].exists and (self.Inv[slot].name = '')) then
-      changedInv.append(slot);
-
   if length(changedInv) = 0 then
   begin
     for i := 0 to high(slotsToMatch) do
@@ -983,14 +1009,15 @@ begin
     exit();
   end;
 
-  print('slotsToSkip = ' + toStr(slotsToSkip));
+  print('Checked all slots progress', eDebugType.DEV);
+  print('slotsToSkip = ' + toStr(slotsToSkip), eDebugType.DEV);
 
   for slot := 0 to 7 do
     if (sortedOffers[slot] in slotsToSkip) and (sortedOffers[slot] in slotsToMatch) then
       slotsToMatch.Del(slotsToMatch.Find(sortedOffers[slot]), 1);
 
-  print('ChangedInv = ' + toStr(ChangedInv));
-  print('slotsToMatch = ' + toStr(slotsToMatch));
+  print('ChangedInv = ' + toStr(ChangedInv), eDebugType.DEV);
+  print('slotsToMatch = ' + toStr(slotsToMatch), eDebugType.DEV);
 
   //if length(changedInv) > (length(slotsToMatch) + length(slotsToSkip)) then
   //  print('There are too many items in the inventory to match to slots', eDebugType.FATAL);
@@ -999,7 +1026,7 @@ begin
 
   if (length(changedInv) > 0) then //and (length(slotsToSkip) > 0) then
   begin
-    print('Some inventory is still not matched, rechecking all slots to see if a double collection happened');
+    print('Some inventory is still not matched, rechecking all slots to see if a double collection happened', eDebugType.DEV);
     //self.SlotsBestMatches(slotsToSkip, changedInv, newInv, False);
     self.SlotsBestMatches(sortedOffers, changedInv, newInv, False);
   end;
@@ -1011,7 +1038,7 @@ begin
       print('There is an unmatched inventory slot', eDebugType.FATAL);
     end;
 
-  print('Debug Offers');
+  print('Debug Offers', eDebugType.DEV);
   self.offers.debug();
 end;
 
@@ -1173,6 +1200,7 @@ var
   i, needed: Int32;
 begin
   needed := max(50, 32 * round(2/self.UserItemFilter.MinVolumeFactor));
+  self.updatedList := getSystemTime();
 
   for i := 0 to high(self.ItemMap) do
   begin
@@ -1201,7 +1229,7 @@ var
 begin
   for i := 0 to 7 do
   begin
-    slot := grandExchange.GetOfferStatus(i);
+    grandExchange.GetStatus(i, slot);
     if slot.OfferType <> ERSGEOfferType.UNKNOWN then Result += 1;
   end;
 end;
@@ -1214,7 +1242,7 @@ var
 begin
   for i := 0 to 7 do
   begin
-    slot := grandExchange.GetOfferStatus(i);
+    grandExchange.GetStatus(i, slot);
     if slot.OfferType = ERSGEOfferType.EMPTY then Result += 1;
   end;
 end;
@@ -1271,7 +1299,7 @@ begin
   trade := self.offers[OfferIndex].createTradeRecord(self.history[historyIndex]);
 
   if trade.Quantity <= 0 then
-    print("ERROR: Cannot add trade of 0 amount")
+    print("ERROR: Cannot add trade of 0 amount", eDebugType.DEV)
   else
     self.tradeLog.append(trade);
 end;
@@ -1399,8 +1427,8 @@ begin
     MinVolumeFactor := 1.5;
     MinPercentTradeable := 1.0;
     MinTradeable := 5;
-    MinValue := 1/32;
-    MinLimit := 201;
+    MinValue := 1/50;
+    MinLimit := 100;
     MinPrice := 100;
   end;
 end;
@@ -1461,7 +1489,7 @@ begin
     //self.itemMap.Free();
     WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
   except
-    Print('Couldnt Free Safely');
+    Print('Couldnt Free Safely', eDebugType.DEV);
   end;
 
   Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);

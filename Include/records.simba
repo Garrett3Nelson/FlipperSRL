@@ -2,7 +2,6 @@
 Types and Variables
 -------------------
 *)
-
 (*
 type tGEItem
 ~~~~~~~~~~~~~~~~~~
@@ -76,7 +75,7 @@ Keeps track of inventory information
 *)
 
 type tInventorySlot = record
-   name : String; // Name of the item in inventory
+   name, uptext : String; // Name of the item in inventory
    count : Int32; // Stack count
    exists: Boolean; // Is there an item in the slot
 end;
@@ -188,8 +187,10 @@ Tracks the information for this instance of the script
 
 type
   eDebugType = (
-      NONE, LIGHT, DEV, FATAL
+      NONE, LIGHT, DEV, FATAL, SAVE
     );
+
+  ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
 
   tScript = record
 
@@ -217,9 +218,8 @@ type
     useRecorder, ScreenshotItems : Boolean;
     globalID : Int32;
     Inv : tInventoryArray;
-
-    // SRL Related Variables
-    RSW : TRSWalker;
+    updatedList : Int64;
+    LogFile : String;
   end;
 
 // Running Variable

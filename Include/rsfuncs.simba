@@ -180,11 +180,8 @@ begin
   Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
 end;
 
-type
-  ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
-
-function TRSGrandExchange.GetStatus(slotNumber : Int32) : ERSGEOfferStatus;
-var Status : TRSGEOfferStatus;
+// Get status and return regular TRSGEOfferStatus
+function TRSGrandExchange.GetStatus(slotNumber : Int32; out status : TRSGEOfferStatus) : ERSGEOfferStatus;
 begin
   Status := self.GetofferStatus(slotNumber);
 
@@ -203,6 +200,12 @@ begin
   if (Status.Progress = 100) and self.IsSlotComplete(slotNumber) then exit(ERSGEOfferStatus.COMPLETE);
 
   result := ERSGEOfferStatus.ACTIVE;
+end;
+
+function TRSGrandExchange.GetStatus(slotNumber : Int32) : ERSGEOfferStatus; overload
+var Status : TRSGEOfferStatus;
+begin
+  result := self.GetStatus(slotNumber, status);
 end;
 
 // Get the status from the OFFER_STATUS interface
@@ -312,6 +315,17 @@ begin
   end;
 end;
 
+function TRSGrandExchange._clickConfirm() : Boolean;
+begin
+  if not waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000) then
+    exit();
+
+  result := waitUntil(Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click(), 150, 1000);
+
+  if result then
+    result := waitUntil((self.GetCurrentInterface = ERSGEInterface.OVERVIEW), 250, 2000);
+end;
+
 function TRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1) : Boolean;
 begin
   if not self.IsOpen() then Exit(False);
@@ -328,7 +342,7 @@ begin
 
   if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Visible() and self.FindProgressPopup() then
   begin
-    Mouse.Move(Self.Bounds().Expand(5).NearestEdge(Mouse.Position()));
+    self.MouseOffSlots();
     waitUntil(Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Visible(), 100, 1000);
   end;
 
@@ -364,7 +378,7 @@ begin
       exit(False);
     end;
 
-    if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
+    if self._clickConfirm() then
       result := waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE, 250, 4000)
     else
     begin
@@ -440,6 +454,12 @@ begin
   //writeln('Slot Number: ', slotNumber);
   if slotNumber > -1 then
   begin
+    if (not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Visible()) and self.FindProgressPopup() then
+    begin
+      self.MouseOffSlots();
+      waitUntil(Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Visible(), 100, 1000);
+    end;
+
     if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Click() then
     begin
       self.DebugInterface('SellButton.bmp');
@@ -491,8 +511,8 @@ begin
 
   wait(random(400,800));
 
-  if Self.GetSetupOfferButton(ERSGESetupOfferButton.CONFIRM).Click() then
-    result := waitUntil(self.GetOfferStatus(slotNumber).OfferType = ERSGEOfferType.SELL, 250, 4000)
+  if self._clickConfirm() then
+    result := waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE, 250, 4000)
   else
     self.DebugInterface('ConfirmButton.bmp');
 
@@ -652,6 +672,13 @@ function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
 
 var itemCount : Int32;
 begin
+  if ((self.GetCurrentInterface() = ERSGEInterface.OVERVIEW) and (self.getStatus(slotnumber) = ERSGEOfferStatus.ABORTED))
+  or ((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) and (SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0)) then
+  begin
+    writeln('AbortOffer: Slot ', slotNumber, ' is already aborted');
+    exit(true);
+  end;
+
   if (self.GetCurrentInterface() <> ERSGEInterface.OFFER_STATUS) then
     if not self.OpenActiveOffer(slotNumber) then exit(False);
 
@@ -683,14 +710,43 @@ begin
     self.ReturnToMain();
     waitUntil(self.GetStatus(slotNumber) <> ERSGEOfferStatus.EMPTY, 250, 2500);
 
+    if self.GetStatus(slotNumber) <> ERSGEOfferStatus.COMPLETE then exit(true);
+
     if self.GetStatus(slotNumber) = ERSGEOfferStatus.ABORTED then
     begin
       self.collectOffer(slotNumber);
       if waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.EMPTY, 250, 2500) then continue
       else
       begin
-        writeln('TRSGrandExchange.createBuyOffer: Offer was aborted on init and could not be collected');
+        writeln('TRSGrandExchange.createBuyOffer: Offer was aborted on init');
         takeScreenshot(itemName + '_abortedOnStart.bmp');
+        exit(False);
+      end;
+    end;
+  end;
+end;
+
+function tRSGrandExchange.CreateSellOffer(invSlot : Int32; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1; uptextCheck: String = ''; loops : Int32) : Boolean; overload;
+var internalSlotNumber : Int32;
+begin
+  if slotNumber = -1 then internalSlotNumber := self.NextEmptySlot() else internalSlotNumber := slotNumber;
+  for 1 to loops do
+  begin
+    if self.CreateSellOffer(invSlot, price, quantity, slotNumber, uptextCheck) then exit(True);
+
+    self.ReturnToMain();
+    waitUntil(self.GetStatus(internalSlotNumber) <> ERSGEOfferStatus.EMPTY, 250, 2500);
+
+    if self.GetStatus(internalSlotNumber) <> ERSGEOfferStatus.COMPLETE then exit(true);
+
+    if self.GetStatus(internalSlotNumber) = ERSGEOfferStatus.ABORTED then
+    begin
+      self.collectOffer(internalSlotNumber);
+      if waitUntil(self.GetStatus(internalSlotNumber) = ERSGEOfferStatus.EMPTY, 250, 2500) then continue
+      else
+      begin
+        writeln('TRSGrandExchange.CreateSellOffer: Offer was aborted on init');
+        takeScreenshot(toStr(internalSlotNumber) + '_abortedOnStart.bmp');
         exit(False);
       end;
     end;
@@ -706,5 +762,13 @@ begin
 
   if toHistory then result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.HISTORY, 250, 2000)
   else result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 250, 2000);
+
+  if not result then
+  begin
+    Mouse.Click(self.GetOverviewButton(ERSGEOverviewButton.CHANGE_TAB).Bounds.Middle(), MOUSE_LEFT);
+
+    if toHistory then result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.HISTORY, 250, 2000)
+    else result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 250, 2000);
+  end;
 end;
 
