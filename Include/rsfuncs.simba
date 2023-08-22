@@ -446,6 +446,19 @@ begin
   result := opts[0].Text;
 end;
 
+// Get the next empty slot
+function TRSInventory.nextEmptySlot() : Int32;
+var
+  i : Integer;
+begin
+  for i := 0 to 27 do
+    if not self.IsSlotUsed(i) then
+      exit(i);
+
+  // Fail to -1
+  exit(-1);
+end;
+
 // Enter -1 for ALL
 function TRSGrandExchange.CreateSellOffer(invSlot : Int32; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1; uptextCheck: String = '') : Boolean;
 begin
@@ -710,7 +723,7 @@ begin
     self.ReturnToMain();
     waitUntil(self.GetStatus(slotNumber) <> ERSGEOfferStatus.EMPTY, 250, 2500);
 
-    if self.GetStatus(slotNumber) <> ERSGEOfferStatus.COMPLETE then exit(true);
+    if self.GetStatus(slotNumber) = ERSGEOfferStatus.COMPLETE then exit(true);
 
     if self.GetStatus(slotNumber) = ERSGEOfferStatus.ABORTED then
     begin
@@ -737,7 +750,7 @@ begin
     self.ReturnToMain();
     waitUntil(self.GetStatus(internalSlotNumber) <> ERSGEOfferStatus.EMPTY, 250, 2500);
 
-    if self.GetStatus(internalSlotNumber) <> ERSGEOfferStatus.COMPLETE then exit(true);
+    if self.GetStatus(internalSlotNumber) = ERSGEOfferStatus.COMPLETE then exit(true);
 
     if self.GetStatus(internalSlotNumber) = ERSGEOfferStatus.ABORTED then
     begin

@@ -647,7 +647,7 @@ end;
 
 function tInventorySlot.stringify(slotNum : Int32) : String;
 begin
-  result := '[' + toStr(slotNum) + ']: ' + Self.Name + ', Stack of ' + toStr(self.count) + '. Exists = ' + toStr(self.exists);
+  result := '[' + toStr(slotNum) + ']: ' + Self.Name + ', Stack of ' + toStr(self.count) + '. Exists = ' + toStr(self.exists) + '. Uptext = ' + toStr(self.uptext);
 end;
 
 procedure tInventorySlot.debug(slotNum : Int32);
@@ -667,6 +667,7 @@ end;
 procedure tInventorySlot.reset();
 begin
   self.name := '';
+  self.uptext := '';
   self.count := -1;
   self.exists := False;
 end;
@@ -784,25 +785,29 @@ procedure tScript.slotsBestMatches(var GESlot : tIntegerArray; var InvSlot : TIn
 var
   i, j, matchIndex : Int32;
   bestMatch : Extended;
-  InvUptext, namesToMatch : tStringArray;
+  namesToMatch : tStringArray;
 begin
   //if (length(GESlot) = 1) and (length(InvSlot) = 1) then
   //begin
   //  self.offers[GESlot[0]].InvSlots.Append(invSlot[0]);
-  //  self.Inv[invSlot[0]] := newInv[invSlot[0]];
+  //  self.Inv[invSlot[i]] := newInv[invSlot[i]];
+  //  self.Inv[invSlot[0]].count := newInv[invSlot[0]].count;
+  //  self.Inv[invSlot[0]].exits := newInv[invSlot[0]].exits;
   //  self.Inv[invSlot[0]].name := self.offers[GESlot[0]].item.name;
   //  invslot.Del(i, 1);
   //  exit();
   //end;
 
-  setLength(InvUpText, length(InvSlot));
   setLength(namesToMatch, length(GESlot));
 
   for i := 0 to high(InvSlot) do
   begin
-    invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/').replace('_', ''));
-    if length(invUptext) < 3 then
-      invUpText[i] := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer').replace('_', ''));
+    if self.Inv[invSlot[i]].uptext = '' then
+    begin
+      self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/').replace('_', ''));
+      if length(self.Inv[invSlot[i]].uptext) < 3 then
+        self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer').replace('_', ''));
+    end;
   end;
 
   for i := 0 to high(GESlot) do
@@ -815,15 +820,15 @@ begin
     print('Attempting to match Inventory Slots ' + toStr(invslot) + ' with Offer Indices ' + toStr(geslot), eDebugType.DEV);
 
     for j := 0 to high(GESlot) do
-      if (StringMatch(namesToMatch[j], invUpText[i]) > bestMatch) then
+      if (StringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext) > bestMatch) then
       begin
-        bestMatch := StringMatch(namesToMatch[j], invUpText[i]);
+        bestMatch := StringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext);
         matchIndex := j;
       end;
 
     if not (bestMatch > 0.7) then
     begin
-      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + invUpText[i] + ')', eDebugType.DEV);
+      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + self.Inv[invSlot[i]].uptext + ')', eDebugType.DEV);
       if not Inventory.IsSlotUsed(InvSlot[i]) then
       begin
         print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching', eDebugType.DEV);
@@ -834,9 +839,10 @@ begin
       end;
     end else
     begin
-      print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + invUpText[i] + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')', eDebugType.DEV);
+      print('Matched Inventory ' + toStr(invSlot[i]) + ' (uptext = ' + self.Inv[invSlot[i]].uptext + ') with Offer Index ' + toStr(GESlot[matchIndex]) + ' (stripped name = ' + namesToMatch[matchIndex] + ')', eDebugType.DEV);
       self.offers[GESlot[matchIndex]].InvSlots.Append(invSlot[i]);
-      self.Inv[invSlot[i]] := newInv[invSlot[i]];
+      self.Inv[invSlot[i]].count := newInv[invSlot[i]].count;
+      self.Inv[invSlot[i]].exists := newInv[invSlot[i]].exists;
       self.Inv[invSlot[i]].name := self.offers[GESlot[matchIndex]].item.name;
 
       GESlot.Del(matchIndex, 1);
