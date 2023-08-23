@@ -670,6 +670,7 @@ begin
   self.uptext := '';
   self.count := -1;
   self.exists := False;
+  self.UsedChooseOption := False;
 end;
 
 procedure tInventorySlot.GetCurrent(InvNumber : Int32);
@@ -806,7 +807,10 @@ begin
     begin
       self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i]).after('Offer').before('/').replace('_', ''));
       if length(self.Inv[invSlot[i]].uptext) < 3 then
-        self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer').replace('_', ''));
+      begin
+        self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer'));
+        self.Inv[invSlot[i]].UsedChooseOption := True;
+      end;
     end;
   end;
 
@@ -820,15 +824,15 @@ begin
     print('Attempting to match Inventory Slots ' + toStr(invslot) + ' with Offer Indices ' + toStr(geslot), eDebugType.DEV);
 
     for j := 0 to high(GESlot) do
-      if (StringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext) > bestMatch) then
+      if (smartStringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext) > bestMatch) then
       begin
-        bestMatch := StringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext);
+        bestMatch := smartStringMatch(namesToMatch[j], self.Inv[invSlot[i]].uptext);
         matchIndex := j;
       end;
 
     if not (bestMatch > 0.7) then
     begin
-      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = ' + self.Inv[invSlot[i]].uptext + ')', eDebugType.DEV);
+      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = "' + self.Inv[invSlot[i]].uptext + '" and name = "' + namesToMatch[j] + '"', eDebugType.DEV);
       if not Inventory.IsSlotUsed(InvSlot[i]) then
       begin
         print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching', eDebugType.DEV);
@@ -836,6 +840,15 @@ begin
         invslot.Del(i, 1);
         bestMatch := -1.0;
         matchIndex := -1;
+      end else
+      begin
+        // Reset the uptext and try again
+        if not self.Inv[invSlot[i]].UsedChooseOption then
+        begin
+          self.Inv[invSlot[i]].uptext := lowercase(Inventory.GetUptext(invSlot[i], True).after('Offer'));
+          self.Inv[invSlot[i]].UsedChooseOption := True;
+          i += 1;
+        end;
       end;
     end else
     begin
@@ -1038,7 +1051,7 @@ begin
   end;
 
   for slot := 0 to 27 do
-    if self.Inv[slot].exists and (self.Inv[slot].name = '') then
+    if (self.Inv[slot].exists or (self.Inv[slot].uptext <> '')) and (self.Inv[slot].name = '') then
     begin
       self.Inv.debug();
       print('There is an unmatched inventory slot', eDebugType.FATAL);

@@ -53,8 +53,7 @@ begin
   saveScreenshot({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator + FormatDateTime('yymmdd_hhmmss', Now()) + '_' + fileName);
 end;
 
-function smartStringMatch(source, target : String; diff : Integer) : Boolean;
-
+function smartStringMatch(source, target: String) : Extended;
   function trimBad(text, omit : String) : String;
   var
     bad : String = "'.,-<>?+=()/\*@![]#_:"+#10+#13+#32;
@@ -69,12 +68,20 @@ function smartStringMatch(source, target : String; diff : Integer) : Boolean;
     end;
   end;
 
+begin
+  source := trimBad(source, target);
+  source := trim(replace(source, ' ', '', [rfReplaceAll]));
+  target := trim(replace(target, ' ', '', [rfReplaceAll]));
+
+  result := stringMatch(source, target);
+end;
+
+function smartStringMatch(source, target : String; diff : Integer) : Boolean; overload;
 var
   strLen : Integer;
   matchDiff, allowable : Extended;
   trimLong, trimShort : String;
 begin
-  source := trimBad(source, target);
   source := trim(replace(source, ' ', '', [rfReplaceAll]));
   target := trim(replace(target, ' ', '', [rfReplaceAll]));
 
@@ -98,7 +105,7 @@ begin
 
   allowable :=  max(1.0 - (diff / strLen), 0.5);
 
-  matchDiff := stringMatch(trimShort, trimLong);
+  matchDiff := smartStringMatch(source,target);
 
   result := matchDiff >= allowable;
 end;

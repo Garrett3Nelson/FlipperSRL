@@ -77,7 +77,7 @@ Keeps track of inventory information
 type tInventorySlot = record
    name, uptext : String; // Name of the item in inventory
    count : Int32; // Stack count
-   exists: Boolean; // Is there an item in the slot
+   exists, usedChooseOption: Boolean;
 end;
 
   tInventoryArray = array of tInventorySlot;
