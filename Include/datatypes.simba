@@ -832,7 +832,7 @@ begin
 
     if not (bestMatch > 0.7) then
     begin
-      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = "' + self.Inv[invSlot[i]].uptext + '" and name = "' + namesToMatch[j] + '"', eDebugType.DEV);
+      print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = "' + self.Inv[invSlot[i]].uptext + '" and name = "' + namesToMatch[matchIndex] + '"', eDebugType.DEV);
       if not Inventory.IsSlotUsed(InvSlot[i]) then
       begin
         print('Deleting inventory slot ' + toStr(InvSlot[i]) + ' from matching', eDebugType.DEV);
