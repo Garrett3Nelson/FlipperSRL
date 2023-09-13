@@ -213,7 +213,7 @@ function TRSGrandExchange.GetStatus() : ERSGEOfferStatus ; overload;
 begin
   if (self.GetCurrentInterface() <> ERSGEInterface.OFFER_STATUS) then
   begin
-    writeln('WARNING: You must specify a slot number OR be on the OFFER_STATUS screen');
+    self.DebugLn('WARNING: You must specify a slot number OR be on the OFFER_STATUS screen');
     exit(ERSGEOfferStatus.UNKNOWN);
   end;
 
@@ -276,7 +276,7 @@ procedure TRSGrandExchange._EnterPrice(price : String);
     priceChange := strtoInt(copy(price, 2, length(price)));
     if priceChange mod 5 <> 0 then
     begin
-      writeln('WARNING: You cannot pass a price change that is not a multiple of 5');
+      self.DebugLn('WARNING: You cannot pass a price change that is not a multiple of 5');
       exit(0);
     end;
 
@@ -336,7 +336,7 @@ begin
   if slotNumber = -1 then
   begin
     self.DebugInterface('NoSlots.bmp');
-    writeln('TRSGrandExchange.createBuyOffer: No empty slots');
+    self.DebugLn('TRSGrandExchange.createBuyOffer: No empty slots');
     exit(False);
   end;
 
@@ -349,7 +349,7 @@ begin
   if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.BUY, slotNumber).Click() then
   begin
     self.DebugInterface('BuyButton.bmp');
-    writeln('TRSGrandExchange.createBuyOffer: Failed to click buy button');
+    self.DebugLn('TRSGrandExchange.createBuyOffer: Failed to click buy button');
     //takeScreenshot('buybutton.png');
     exit(False);
   end;
@@ -360,7 +360,7 @@ begin
 
   if not Self.Search(itemName, True) then
   begin
-    writeln('TRSGrandExchange.createBuyOffer: Searching for ' + itemName + ' failed');
+    self.DebugLn('TRSGrandExchange.createBuyOffer: Searching for ' + itemName + ' failed');
     exit(False);
   end;
 
@@ -374,7 +374,7 @@ begin
 
     if self.GetItemTotalPrice() > self.readCash() then
     begin
-      writeln('TRSGrandExchange.createBuyOffer: Cash is not sufficient to cover this offer');
+      self.DebugLn('TRSGrandExchange.createBuyOffer: Cash is not sufficient to cover this offer');
       exit(False);
     end;
 
@@ -383,15 +383,15 @@ begin
     else
     begin
       self.DebugInterface('ConfirmButton.bmp');
-      writeln('TRSGrandExchange.createBuyOffer: Failed to click confirm button');
+      self.DebugLn('TRSGrandExchange.createBuyOffer: Failed to click confirm button');
       exit(False);
     end;
 
-    writeln('TRSGrandExchange.createBuyOffer: Result = ' ,Result);
+    //self.DebugLn('TRSGrandExchange.createBuyOffer: Result = '  + toStr(Result));
   end else
   begin
     self.DebugInterface('Quantity.bmp');
-    writeln('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
+    self.DebugLn('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
     exit(False);
   end;
 end;
@@ -476,13 +476,13 @@ begin
     if not Self.GetOfferCreateButton(ERSGEOfferCreateButton.SELL, slotNumber).Click() then
     begin
       self.DebugInterface('SellButton.bmp');
-      writeln('TRSGrandExchange.createSellOffer: Failed to click sell button');
+      self.DebugLn('TRSGrandExchange.createSellOffer: Failed to click sell button');
       exit(False);
     end;
 
     if not waitUntil((self.GetCurrentInterface = ERSGEInterface.OFFER_SETUP), 250, 2000) then
     begin
-      writeln('TRSGrandExchange.createSellOffer: Failed to open interface by clicking button');
+      self.DebugLn('TRSGrandExchange.createSellOffer: Failed to open interface by clicking button');
       exit(False);
     end;
   end else
@@ -490,7 +490,7 @@ begin
 
   if not Inventory.IsSlotUsed(invSlot) then
   begin
-    writeln('TRSGrandExchange.createSellOffer: Nothing exists in inventory slot ' + toStr(InvSlot));
+    self.DebugLn('TRSGrandExchange.createSellOffer: Nothing exists in inventory slot ' + toStr(InvSlot));
     takeScreenshot('NotIn_' + toStr(InvSlot) + '.bmp');
     exit(False);
   end;
@@ -503,7 +503,7 @@ begin
   if not waitUntil((self.GetItemQuantity > 0), 250, 2000) then
   begin
     self.DebugInterface('NoQuantity.bmp');
-    writeln('TRSGrandExchange.createSellOffer: Offer quantity did not show up');
+    self.DebugLn('TRSGrandExchange.createSellOffer: Offer quantity did not show up');
     exit(False);
   end;
 
@@ -511,7 +511,7 @@ begin
   begin
     if not (stringMatch(LowerCase(uptextCheck), LowerCase(self.GetItemName())) > 0.8) then
     begin
-      writeln('TRSGrandExchange.createSellOffer: Incorrect item name, detected "' + self.GetItemName() + '"');
+      self.DebugLn('TRSGrandExchange.createSellOffer: Incorrect item name, detected "' + self.GetItemName() + '"');
       exit(False);
     end;
   end;
@@ -531,7 +531,7 @@ begin
 
   //if result then Result := self.GetStatus(slotNumber) = ERSGEOfferStatus.ACTIVE;
 
-  writeln('TRSGrandExchange.createSellOffer: Result = ', Result);
+  //self.DebugLn('TRSGrandExchange.createSellOffer: Result = ' + toStr(Result));
 end;
 
 function TRSGrandExchange.CreateSellOffer(itemName : String; price : String = '-1'; quantity: Int32 = -1; slotNumber : Int32 = -1) : Boolean; overload;
@@ -546,7 +546,7 @@ begin
   else
     if not Inventory.FindItem(item, InvSlot) then
     begin
-      writeln('TRSGrandExchange.createSellOffer: Cannot find ', itemName);
+      self.DebugLn('TRSGrandExchange.createSellOffer: Cannot find ' + itemName);
       takeScreenshot(item + '_notFound.bmp');
       exit(False);
     end;
@@ -557,6 +557,7 @@ end;
 function TRSGrandExchange.OpenActiveOffer(slotNumber: Int32) : Boolean;
 begin
   if (self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) then exit(True);
+  if (self.GetStatus(slotNumber) = ERSGEOfferStatus.EMPTY) then exit(False); // Cannot open an empty slot
 
   Mouse.Click(self.GetOfferSlots()[slotNumber], MOUSE_LEFT);
   result := waitUntil((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS), 400, 2000);
@@ -583,7 +584,7 @@ var tries : Int32;
 begin
   if not (self.GetCurrentInterface() = ERSGEInterface.OVERVIEW) then
   begin
-    writeln('CollectOffer: You must specify a slot number or be at the overview screen');
+    self.DebugLn('CollectOffer: You must specify a slot number or be at the overview screen');
     exit(False);
   end;
 
@@ -618,7 +619,7 @@ var
 begin
   if (slotNumber < 0) or (slotNumber > 7) then
   begin
-    writeln('CollectOffer: You must specify a slot between 0 and 7');
+    self.DebugLn('CollectOffer: You must specify a slot between 0 and 7');
     exit(False);
   end;
 
@@ -628,7 +629,7 @@ begin
 
     if not self.OpenActiveOffer(slotNumber) then
     begin
-      writeln('CollectOffer: Could not open the offer for slot ', slotNumber);
+      self.DebugLn('CollectOffer: Could not open the offer for slot ' + toStr(slotNumber));
       exit(False);
     end;
   end;
@@ -642,7 +643,7 @@ begin
     if SRL.CountColor(RS_ITEM_BORDER, CollectionBox) > 0 then
     begin
       if not collectSlot(CollectionBox) then
-        writeln('CollectOffer: Failed to collect from collection box');
+        self.DebugLn('CollectOffer: Failed to collect from collection box');
     end;
 
   result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
@@ -688,7 +689,7 @@ begin
   if ((self.GetCurrentInterface() = ERSGEInterface.OVERVIEW) and (self.getStatus(slotnumber) = ERSGEOfferStatus.ABORTED))
   or ((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) and (SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0)) then
   begin
-    writeln('AbortOffer: Slot ', slotNumber, ' is already aborted');
+    self.DebugLn('AbortOffer: Slot ' + toStr(slotNumber) + ' is already aborted');
     exit(true);
   end;
 
@@ -702,7 +703,7 @@ begin
   Result := waitUntil(SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0, 200, 2000);
 
   if Result then waitUntil((self.CountCollectionSlots() > itemCount), 250, 2000);
-  writeln('GrandExchange: Abort Slot ', slotNumber, ': ', result);
+  //self.DebugLn('GrandExchange: Abort Slot ' + toStr(slotNumber) + ': ' + toStr(result));
 end;
 
 function tRSGrandExchange.CreateBuyOffer(itemName : String; price : String = '-1'; quantity: Int32 = 1; slotNumber : Int32 = -1; loops : Int32) : Boolean; overload;
@@ -712,7 +713,7 @@ begin
 
   if slotNumber = -1 then
   begin
-    writeln('TRSGrandExchange.createBuyOffer: No empty slots');
+    self.DebugLn('TRSGrandExchange.createBuyOffer: No empty slots');
     exit(False);
   end;
 
@@ -731,7 +732,7 @@ begin
       if waitUntil(self.GetStatus(slotNumber) = ERSGEOfferStatus.EMPTY, 250, 2500) then continue
       else
       begin
-        writeln('TRSGrandExchange.createBuyOffer: Offer was aborted on init');
+        self.DebugLn('TRSGrandExchange.createBuyOffer: Offer was aborted on init');
         takeScreenshot(itemName + '_abortedOnStart.bmp');
         exit(False);
       end;
@@ -758,7 +759,7 @@ begin
       if waitUntil(self.GetStatus(internalSlotNumber) = ERSGEOfferStatus.EMPTY, 250, 2500) then continue
       else
       begin
-        writeln('TRSGrandExchange.CreateSellOffer: Offer was aborted on init');
+        self.DebugLn('TRSGrandExchange.CreateSellOffer: Offer was aborted on init');
         takeScreenshot(toStr(internalSlotNumber) + '_abortedOnStart.bmp');
         exit(False);
       end;

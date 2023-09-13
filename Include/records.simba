@@ -156,7 +156,7 @@ end;
   tTradeRecordArray = Array of tTradeRecord;
 
 type tItemMap = record
-  ID, Limit, AvgHigh, AvgLow, HighVol, LowVol, Tradeable : Int32;
+  ID, Limit, AvgHigh, AvgLow, HighVol, LowVol, Tradeable, FourHrTradeable, EstTax, EstMargin, EstProfit, EstPerHour : Int32;
   Value : Int64;
   Name : String;
   VolumeFactor, PercentTradeable : Extended;
@@ -214,12 +214,12 @@ type
     DefaultItemFilter : tItemFilter;
     itemList : tStringArray;
     playerCash : Int32;
-    coolDown : Boolean;
+    coolDown, FinalCoolDown : Boolean;
     useRecorder, ScreenshotItems : Boolean;
     globalID : Int32;
     Inv : tInventoryArray;
-    updatedList : Int64;
-    LogFile : String;
+    updatedList, CoolDownFinish : Int64;
+    LogFile, TradeLogFile : String;
   end;
 
 // Running Variable

@@ -24,12 +24,16 @@ begin
     Quantity := history.Quantity;
     PricePerItem := history.PricePerItem;
     TotalPrice := history.TotalPrice;
+    PreTax := history.PreTax;
   end;
 end;
 
 function tTradeRecord.stringify() : String;
 begin
-  result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ' (' + toStr(self.PricePerItem) +' ea), Recorded at ' + toStr(self.TimeStamp);
+  if self.PreTax > 0 then
+    result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ' (' + toStr(self.PricePerItem) +' ea). BeforeTax = ' + toStr(self.PreTax) + ' (' + toStr(round(self.PreTax / self.Quantity)) +' ea). Recorded at ' + toStr(self.TimeStamp)
+  else
+    result := self.OfferType + ': Quantity = ' + toStr(self.Quantity) + ', Price = ' + toStr(self.TotalPrice) + ' (' + toStr(self.PricePerItem) +' ea), Recorded at ' + toStr(self.TimeStamp);
 end;
 
 (*
@@ -305,7 +309,15 @@ function tGEOfferArray.countActive() : Integer;
 var i : Integer;
 begin
   for i := 0 to high(self) do
-    if ((self[i].globalID > 0) and (self[i].status <> 'empty')) then
+    if ((self[i].globalID >= 0) and (self[i].status <> 'empty')) then
+      result += 1;
+end;
+
+function tGEOfferArray.countBuying() : Integer;
+var i : Integer;
+begin
+  for i := 0 to high(self) do
+    if (self[i].status = 'buying') then
       result += 1;
 end;
 
@@ -332,6 +344,16 @@ var
 begin
   for i := 0 to high(self) do
     if (self[i].slot.Progress > self[i].slot.LastProgress) then result.append(i);
+end;
+
+function tGEOfferArray.NextEmptyOffer() : Int32;
+var
+  i : Integer;
+begin
+  for i := 0 to high(self) do
+    if (self[i].status = 'empty') then exit(i);
+
+  result := -1;
 end;
 
  (*
@@ -1085,6 +1107,30 @@ begin
     swap(self[i], self[random(length(self))]);
 end;
 
+function tItemMapArray.Get(itemID : Int32; out item : tItemMap): boolean;
+var i, h : Int32;
+begin
+  h := high(self);
+  for i := 0 to h do
+    if self[i].ID = itemID then
+    begin
+      item := self[i];
+      exit(true);
+    end;
+end;
+
+function tItemMap.CalculateWait(default : Int32 = 10 * ONE_MINUTE): Int32;
+begin
+  result := max(default, round((60 * ONE_MINUTE) / min(self.LowVol, self.HighVol)));
+end;
+
+function tItemMapArray.CalculateWait(itemID : Int32; default : Int32 = 10 * ONE_MINUTE) : Int32;
+var tItem : tItemMap;
+begin
+  if not self.Get(itemID, tItem) then exit(default)
+  else result := tItem.CalculateWait(default);
+end;
+
 function tJSONObject.HasAll(keys : tStringArray; checkNull : Boolean = False) : Boolean;
 var key : String;
 begin
@@ -1103,6 +1149,16 @@ begin
   Result.ID := id;
   Result.Name := name;
   Result.Limit := limit;
+end;
+
+procedure tItemMapArray.SortByProfit();
+var
+  i, j : Int32;
+begin
+  for i:=0 to high(self) do
+    for j:=0 to high(self) do
+      if (self[i].EstPerHour > self[j].EstPerHour) then
+        Swap(self[i], self[j]); // Sort the ItemMapArray by PerHour
 end;
 
 procedure tItemMap.UpdateItemMap(json : tJSONObject);
@@ -1153,14 +1209,14 @@ begin
       //if (Items.IndexOf(tempName) = -1) then continue;
       if system.length(tempName) < 3 then continue;
 
-      result[count] := [tempJSON.getInt('id'), tempJSON.getInt('limit'), 0, 0, 0, 0, 0, 0, tempName, 0.0, 0.0];
+      result[count] := [tempJSON.getInt('id'), tempJSON.getInt('limit'), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, tempName, 0.0, 0.0];
       inc(count);
     except
     end;
   end;
   SetLength(Result, Count);
 
-  result.Randomize();
+  //result.Randomize();
   items.Free();
 end;
 
@@ -1183,15 +1239,12 @@ end;
 
 procedure tScript.UpdateItemMap(HourlyJSON : tJSONObject);
 var
-  i : Int32;
+  i, optimalTradeable : Int32;
 begin
   self.ItemMap.AddHourly(HourlyJSON);
 
   for i := 0 to high(self.ItemMap) do
   begin
-    if min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) > 0 then
-      self.ItemMap[i].VolumeFactor := round(min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) / self.ItemMap[i].Limit, 2);
-
     if self.ItemMap[i].AvgLow > 0 then
     begin
       self.ItemMap[i].Tradeable := round(self.PlayerCash / self.ItemMap[i].AvgLow);
@@ -1199,7 +1252,31 @@ begin
     end;
 
     self.ItemMap[i].Value := self.ItemMap[i].AvgLow * self.ItemMap[i].Limit;
+
+    self.ItemMap[i].EstTax := floor(self.ItemMap[i].AvgHigh * 0.01);
+    self.ItemMap[i].EstMargin := (self.ItemMap[i].AvgHigh - 1) - self.ItemMap[i].EstTax - (self.ItemMap[i].AvgLow + 1);
+
+    if min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) > 0 then
+    begin
+      self.ItemMap[i].VolumeFactor := round(min(self.ItemMap[i].HighVol, self.ItemMap[i].LowVol) / self.ItemMap[i].Limit, 2);
+
+      // Based on solving for tradeable volume in 4hrs given the volumes are known
+      optimalTradeable := round(self.ItemMap[i].LowVol * (4 * self.ItemMap[i].HighVol) / (self.ItemMap[i].LowVol+self.ItemMap[i].HighVol));
+      self.ItemMap[i].FourHrTradeable := max(0, min(min(self.ItemMap[i].Limit - 1, self.ItemMap[i].Tradeable), min(optimalTradeable, self.ItemMap[i].Limit - self.countTraded(self.ItemMap[i].ID))));
+
+      // Total profit = (Margin * Tradeable) - Margin
+      // The "- Margin" is because we do one price check
+      self.ItemMap[i].EstProfit := (self.ItemMap[i].EstMargin * self.ItemMap[i].FourHrTradeable) - self.ItemMap[i].EstMargin;
+      self.ItemMap[i].EstPerHour := round(self.ItemMap[i].EstProfit / (self.ItemMap[i].FourHrTradeable * ((1/self.ItemMap[i].LowVol) + (1/self.ItemMap[i].HighVol))));
+    end;
   end;
+end;
+
+function tItemMap.IsInArr(itemMapArray : tItemMapArray) : Boolean;
+var i : Int32;
+begin
+  for i := 0 to high(itemMapArray) do
+    if self.Name = itemMapArray[i].Name then exit(True);
 end;
 
 function FilterItem(item : tItemMap; itemFilter : tItemFilter) : Boolean;
@@ -1217,26 +1294,32 @@ end;
 function tScript.CreateFilteredList() : tStringArray;
 var
   i, needed: Int32;
+  filteredMap : tItemMapArray;
 begin
   needed := max(50, 32 * round(2/self.UserItemFilter.MinVolumeFactor));
   self.updatedList := getSystemTime();
 
   for i := 0 to high(self.ItemMap) do
-  begin
-    if length(result) >= needed then exit();
+    if FilterItem(self.ItemMap[i], self.UserItemFilter) then filteredMap.append(self.ItemMap[i]);
 
-    if FilterItem(self.ItemMap[i], self.UserItemFilter) then result.append(self.ItemMap[i].Name);
-  end;
-
-  if length(result) <= needed then
+  if length(filteredMap) <= needed then
   begin
-    print('WARNING: Your item list was only ' + toStr(length(result)) + ' items long, adding default filters to hit ' + toStr(needed), eDebugType.LIGHT);
+    print('WARNING: Your item list was only ' + toStr(length(filteredMap)) + ' items long, adding default filters to hit ' + toStr(needed), eDebugType.LIGHT);
     for i := 0 to high(self.ItemMap) do
     begin
-      if length(result) >= needed then exit();
+      if length(filteredMap) >= needed then break();
+      if self.ItemMap[i].isInArr(filteredMap) then continue;
 
-      if FilterItem(self.ItemMap[i], self.DefaultItemFilter) then result.append(self.ItemMap[i].Name);
+      if FilterItem(self.ItemMap[i], self.DefaultItemFilter) then filteredMap.append(self.ItemMap[i]);
     end;
+  end;
+
+  filteredMap.SortByProfit();
+
+  for i := 0 to min(high(filteredMap),(needed-1)) do
+  begin
+    //writeln filteredMap[i];
+    result.append(filteredMap[i].Name);
   end;
 end;
 
@@ -1443,28 +1526,20 @@ begin
 
   with self.DefaultItemFilter do
   begin
-    MinVolumeFactor := 1.5;
+    MinVolumeFactor := 1.0;
     MinPercentTradeable := 1.0;
     MinTradeable := 5;
-    MinValue := 1/50;
-    MinLimit := 100;
+    MinValue := 1/64;
+    MinLimit := 50;
     MinPrice := 100;
   end;
 end;
 
 procedure tScript.init();
-var f : Int32;
 begin
-  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'TradeLogs') then
-    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'TradeLogs');
+  createTradeLogFile();
 
-  if not fileExists({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt') then
-  begin
-    f := createFile({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt');
-    closeFile(f);
-  end;
-
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
+  WriteFileContents(self.TradeLogFile, FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script Start' + STR_NEW_LINE + STR_NEW_LINE, True);
 
   if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots') then
     CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots');
@@ -1481,24 +1556,16 @@ begin
   {$ENDIF}
 end;
 
-//procedure tScript.initRecorder();
-//begin
-//  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Video') then
-//    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Video');
-//
-//  Recorder.Start(GetSimbaTargetWindow(), 30, {$MACRO CURRENT_DIRECTORY} + 'Video')
-//end;
-
 procedure TScript.saveTrade(offerIndex : Int32);
 var i : Int32;
 begin
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].stringify(OfferIndex, False, True) + STR_NEW_LINE, True);
-  WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', self.offers[OfferIndex].item.stringify() + STR_NEW_LINE, True);
+  WriteFileContents(self.TradeLogFile, self.offers[OfferIndex].stringify(OfferIndex, False, True) + STR_NEW_LINE, True);
+  WriteFileContents(self.TradeLogFile, self.offers[OfferIndex].item.stringify() + STR_NEW_LINE, True);
 
   if self.offers[OfferIndex].globalID > -1 then
     for i := 0 to high(self.tradeLog) do
       if self.tradeLog[i].offerID = self.offers[OfferIndex].globalID then
-        WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', '    ' + self.tradeLog[i].stringify() + STR_NEW_LINE, True);
+        WriteFileContents(self.TradeLogFile, '    ' + self.tradeLog[i].stringify() + STR_NEW_LINE, True);
 end;
 
 procedure TScript.Free();
@@ -1506,7 +1573,7 @@ begin
   try
     RSClient.Image.Clear();
     //self.itemMap.Free();
-    WriteFileContents({$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + 'log.txt', STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
+    WriteFileContents(self.TradeLogFile, STR_NEW_LINE + STR_NEW_LINE + FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' - Script End' + STR_NEW_LINE, True);
   except
     Print('Couldnt Free Safely', eDebugType.DEV);
   end;

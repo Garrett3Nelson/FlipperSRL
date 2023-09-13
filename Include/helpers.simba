@@ -3,22 +3,40 @@ begin
   result := 1000 * dateTimetoUnix(NowUTC(), True); // Unix is in seconds by default, change to ms to match all SRL functions
 end;
 
-procedure print(txt: String; toFile : Boolean);
-var
-  f : Int32;
+procedure createTradeLogFile();
+var f : Int32;
 begin
-  if (toFile) and (bot.LogFile = '') then
-  begin
-    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Logs' + DirectorySeparator);
-    bot.LogFile := {$MACRO CURRENT_DIRECTORY} + 'Logs' + DirectorySeparator + FormatDateTime('yyyymmdd_hhmmss', Now()) + '_log.txt';
-    if not fileExists(bot.LogFile) then
-    begin
-      f := CreateFile(bot.LogFile);
-      closeFile(f);
-    end;
-  end;
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'TradeLogs') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'TradeLogs');
 
-  if (toFile) then
+  bot.TradeLogFile := {$MACRO CURRENT_DIRECTORY} + 'TradeLogs' + DirectorySeparator + FormatDateTime('yyyymmdd_hhmmss', Now()) + '_log.txt';
+  if not fileExists(bot.TradeLogFile) then
+  begin
+    f := CreateFile(bot.TradeLogFile);
+    closeFile(f);
+  end;
+end;
+
+procedure createLogFile();
+var f : Int32;
+begin
+  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Logs') then
+    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Logs');
+
+  bot.LogFile := {$MACRO CURRENT_DIRECTORY} + 'Logs' + DirectorySeparator + FormatDateTime('yyyymmdd_hhmmss', Now()) + '_log.txt';
+  if not fileExists(bot.LogFile) then
+  begin
+    f := CreateFile(bot.LogFile);
+    closeFile(f);
+  end;
+end;
+
+procedure print(txt: String; toOutput, toFile : Boolean);
+begin
+  if toFile and (bot.LogFile = '') then
+    createLogFile();
+
+  if toFile then
   begin
     try
       writeFileContents(bot.LogFile, txt + STR_NEW_LINE, True);
@@ -28,23 +46,38 @@ begin
     end;
   end;
 
-  writeln(txt);
+  if toOutput then
+    writeln(txt);
 end;
 
 procedure print(txt: String; level: eDebugType); overload;
 begin
-  if level = eDebugType.FATAL then
+  if (level = eDebugType.FATAL) then
   begin
-    print(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' [FATAL]: ' + txt, (bot.DebugLevel = eDebugType.SAVE));
+    print(SRL.TimeStamp() + ' [FATAL]: ' + txt, True, (bot.DebugLevel = eDebugType.SAVE));
     terminateScript();
   end;
 
   if bot.debugLevel = eDebugType.NONE then exit();
 
-  case bot.debugLevel of
-    eDebugType.DEV, eDebugType.SAVE: print(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' [BOT]: ' + txt, (bot.DebugLevel = eDebugType.SAVE));
-    eDebugType.LIGHT: if (level = eDebugType.LIGHT) then print(FormatDateTime('yyyy-mm-dd hh:mm:ss', Now()) + ' [BOT]: ' + txt, (bot.DebugLevel = eDebugType.SAVE));
-  end;
+  if bot.debugLevel = eDebugType.SAVE then
+  begin
+    case level of
+      eDebugType.DEV: print(SRL.TimeStamp() + ' [DEV]: ' + txt, False, True);
+      eDebugType.LIGHT: print(SRL.TimeStamp() + ' [LIGHT]: ' + txt, True, True);
+    end;
+
+    exit();
+  end else
+    case bot.debugLevel of
+      eDebugType.DEV: print(SRL.TimeStamp() + ' [DEV]: ' + txt, True, False);
+      eDebugType.LIGHT: if (level = eDebugType.LIGHT) then print(SRL.TimeStamp() + ' [LIGHT]: ' + txt, True, False);
+    end;
+end;
+
+procedure TSRLBaseRecord.DebugLn(text: String); constref; override;
+begin
+    print(SRL.TimeStamp() + ':[' + Self.Name + ']: ' + text, True, (bot.DebugLevel = eDebugType.SAVE));
 end;
 
 procedure takeScreenshot(fileName: string);
@@ -277,10 +310,12 @@ begin
   if userB = Chat.GetLineBoxes()[CHAT_INPUT_LINE] then
     userB := [];
 
-  try
-    XPBar.Read();
-    expB := XPBar.Bounds();
-  except
+  XPBar._Setup();
+  if XPBar.isSetup then
+    expB := XPBar.Bounds()
+  else
+  begin
+    print('Could not find XPBar, guessing location for video blocking', eDebugType.DEV);
     expB := [MainScreen.Bounds().Middle.X, 0, MainScreen.Bounds().X2, 25];
   end;
 
