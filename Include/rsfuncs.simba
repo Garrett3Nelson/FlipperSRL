@@ -26,6 +26,9 @@ begin
       if Minimap.HasFlag(Random(200, 400)) then
         Minimap.WaitFlag();
 
+      if BankPin.IsOpen(2000) then
+        BankPin.Enter(Login.GetPlayerPin());
+
       Result := waitUntil(Self.IsOpen(), 250, 2500);
     end;
 
@@ -178,6 +181,7 @@ begin
 
   Mouse.Click(findArrow().Middle().Random(0,3), MOUSE_LEFT);
   Result := waitUntil(self.GetCurrentInterface() = ERSGEInterface.OVERVIEW, 200, 2000);
+  if Result then wait(800,1200); // Previously was returning too quickly and allowing GE lag to interrupt the next functions
 end;
 
 // Get status and return regular TRSGEOfferStatus
@@ -393,6 +397,20 @@ begin
     self.DebugInterface('Quantity.bmp');
     self.DebugLn('TRSGrandExchange.createBuyOffer: Could not enter Quantity properly');
     exit(False);
+  end;
+end;
+
+function TRSLogin.AtLobby() : Boolean;
+begin
+  result := Self.FindText('CLICK HERE TO PLAY');
+end;
+
+function TRSLogin.HandleLobby() : Boolean;
+begin
+  if self.AtLobby() then
+  begin
+    Self.DebugLn('At lobby screen');
+    exit(Self.EnterGame());
   end;
 end;
 
@@ -687,7 +705,7 @@ function TRSGrandExchange.AbortOffer(slotNumber : Int32) : Boolean;
 var itemCount : Int32;
 begin
   if ((self.GetCurrentInterface() = ERSGEInterface.OVERVIEW) and (self.getStatus(slotnumber) = ERSGEOfferStatus.ABORTED))
-  or ((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) and (SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0)) then
+  or ((self.GetCurrentInterface() = ERSGEInterface.OFFER_STATUS) and (self.GetStatus() = ERSGEOfferStatus.ABORTED)) then
   begin
     self.DebugLn('AbortOffer: Slot ' + toStr(slotNumber) + ' is already aborted');
     exit(true);
@@ -700,7 +718,7 @@ begin
 
   itemCount := self.CountCollectionSlots();
   Mouse.Click(FindAbortButton().Middle().Random(1,4), MOUSE_LEFT);
-  Result := waitUntil(SRL.CountColor(143, self.GetOfferStatusButton(ERSGEOfferStatusButton.PROGRESS).Bounds) > 0, 200, 2000);
+  Result := waitUntil(self.GetStatus() = ERSGEOfferStatus.ABORTED, 200, 2000);
 
   if Result then waitUntil((self.CountCollectionSlots() > itemCount), 250, 2000);
   //self.DebugLn('GrandExchange: Abort Slot ' + toStr(slotNumber) + ': ' + toStr(result));
