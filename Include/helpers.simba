@@ -322,3 +322,34 @@ begin
   Recorder.Start(30, {$MACRO CURRENT_DIRECTORY} + 'Video', userB, expB);
 end;
 
+function FormatInt(int : Int32) : String;
+var
+  i : Int32;
+begin
+  if int < 1000 then exit(toStr(int));
+
+  if floor(int/1000) < 1000 then
+  begin
+    result := toStr(int);
+    insert(',', result, (length(result)-2));
+    exit();
+  end;
+
+  if floor(int/1000000) < 1000 then
+  begin
+    result := toStr(int);
+    insert(',', result, (length(result)-5));
+    insert(',', result, (length(result)-2));
+    exit();
+  end;
+
+  if floor(int/1000000000) < 1000 then
+  begin
+    result := toStr(int);
+    insert(',', result, (length(result)-8));
+    insert(',', result, (length(result)-5));
+    insert(',', result, (length(result)-2));
+    exit();
+  end;
+end;
+

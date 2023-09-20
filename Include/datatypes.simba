@@ -1302,7 +1302,7 @@ begin
   for i := 0 to high(self.ItemMap) do
     if FilterItem(self.ItemMap[i], self.UserItemFilter) then filteredMap.append(self.ItemMap[i]);
 
-  if length(filteredMap) <= needed then
+  if length(filteredMap) < needed then
   begin
     print('WARNING: Your item list was only ' + toStr(length(filteredMap)) + ' items long, adding default filters to hit ' + toStr(needed), eDebugType.LIGHT);
     for i := 0 to high(self.ItemMap) do
@@ -1579,10 +1579,10 @@ begin
   end;
 
   Print('Did ' + toStr(length(self.CompleteOffers)) + ' trades', eDebugType.LIGHT);
-  Print('Spent ' + toStr(self.totalSpend) + ' and made ' + toStr(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
+  Print('Spent ' + FormatInt(self.totalSpend) + ' and made ' + FormatInt(self.totalRevenue) + ' revenue', eDebugType.LIGHT);
   //Print('Start Cash: ' + toStr(self.starterCash) + ', Current Cash: ' + toStr(self.playerCash));
   //Print('Cash change of: ' + toStr(self.playerCash - self.starterCash));
-  Print('A total profit of: ' + toStr(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
+  Print('A total profit of: ' + FormatInt(self.totalRevenue - self.totalSpend) + 'gp', eDebugType.LIGHT);
   //Print('Blacklist for next time: ' + toStr(self.UserItemFilter.BlackList), eDebugType.LIGHT);
 
   Print('You did great out there', eDebugType.LIGHT);
