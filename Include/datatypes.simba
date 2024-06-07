@@ -488,7 +488,7 @@ begin
     if (not self[i].isUsed) and (not self[i].firstPass) then self[i].firstPass := True;
 end;
 
-function tGEHistory.equals(cmp : tGEHistory) : Boolean;
+function tGEHistory.equals(cmp : tGEHistory) : Boolean; overload;
 begin
   result := True;
 
@@ -598,35 +598,34 @@ begin
   self.trimUsed();
 end;
 
-procedure tGEHistoryArray.Update();
-
-  function CastHist(hist: tRSGEHistory) : tGEHistoryArray;
-  var
-    tCast : tGEHistory;
-    lineItem : TRSGEHistoryItem;
+function CastHist(hist: tRSGEHistory) : tGEHistoryArray;
+var
+  tCast : tGEHistory;
+  lineItem : TRSGEHistoryItem;
+begin
+  for lineItem in hist do
   begin
-    for lineItem in hist do
+    with tCast do
     begin
-      with tCast do
-      begin
-        tCast.OfferType := lineItem.OfferType;
-        tCast.Item:= lineItem.Item;
-        tCast.Quantity:= lineItem.Quantity;
-        tCast.PricePerItem:= lineItem.PricePerItem;
-        tCast.TotalPrice:= lineItem.TotalPrice;
-        tCast.PreTax:= lineItem.PreTax;
-        tCast.Bounds:= lineItem.Bounds;
-        tCast.isUsed:= False;
-      end;
-
-      result.append(tCast);
+      tCast.OfferType := lineItem.OfferType;
+      tCast.Item:= lineItem.Item;
+      tCast.Quantity:= lineItem.Quantity;
+      tCast.PricePerItem:= lineItem.PricePerItem;
+      tCast.TotalPrice:= lineItem.TotalPrice;
+      tCast.PreTax:= lineItem.PreTax;
+      tCast.Bounds:= lineItem.Bounds;
+      tCast.isUsed:= False;
     end;
-  end;
 
+    result.append(tCast);
+  end;
+end;
+
+procedure tGEHistoryArray.Update();
 var
   newHistory : tGEHistoryArray;
   firstPass : Boolean;
-  i : Int32;
+  i, amt : Int32;
 begin
   grandExchange.changeTab();  // Change to History tab
   wait(random(400,800));
@@ -635,18 +634,20 @@ begin
 
   setLength(newHistory, 0);
 
-  newHistory := CastHist(GrandExchange.GetHistory());
+  if firstPass then amt := 5 else amt := max(5, GrandExchange.SearchHistory(self[0], CastHist(GrandExchange.GetHistory())));
+
+  newHistory := CastHist(GrandExchange.GetHistory(amt));
   if length(newHistory) = 0 then
   begin
     GrandExchange.ChangeTab();
 
-    newHistory := CastHist(GrandExchange.GetHistory());
+    newHistory := CastHist(GrandExchange.GetHistory(amt));
     if length(newHistory) = 0 then
       print('History.Update: Failed to read history', eDebugType.FATAL);
   end;
 
   if length(newHistory) > 5 then
-    if newHistory[5].OfferType = '' then newHistory.deleteIndex(5);
+    if newHistory[high(newHistory)].OfferType = '' then newHistory.deleteIndex(high(newHistory));
 
   grandExchange.changeTab(False);
   wait(random(400,800));
@@ -852,7 +853,7 @@ begin
         matchIndex := j;
       end;
 
-    if not (bestMatch > 0.7) then
+    if not (bestMatch > 0.75) then
     begin
       print('WARNING: Best match was not good: ' + toStr(bestMatch) + ' for uptext = "' + self.Inv[invSlot[i]].uptext + '" and name = "' + namesToMatch[matchIndex] + '"', eDebugType.DEV);
       if not Inventory.IsSlotUsed(InvSlot[i]) then
@@ -1546,14 +1547,6 @@ begin
 
   if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator + 'Items') then
     CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Screenshots' + DirectorySeparator + 'Items');
-
-  if not DirectoryExists({$MACRO CURRENT_DIRECTORY} + 'Video') then
-    CreateDirectory({$MACRO CURRENT_DIRECTORY} + 'Video');
-
-  {$IFHASFILE Includes/WaspLib/utils/recorder/recorder.simba}
-  if self.useRecorder then
-    self.setupRecorder();
-  {$ENDIF}
 end;
 
 procedure TScript.saveTrade(offerIndex : Int32);

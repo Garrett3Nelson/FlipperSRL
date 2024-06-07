@@ -252,90 +252,18 @@ begin
   mBitmap.Free();
 end;
 
-
-// Helper function for finding the new OSRS Window after RemoteInput pairs
-// Example: NewWindow := FindRSWindow(GetSimbaTargetPID());
-function FindRSWindow(targetPID : Int32 = -1) : tOSWindow;
-var
-  Root, Child: TOSWindow;
-  windowBox : tBox;
-  windowWidth, curWidth : Integer;
-begin
-  for Root in GetVisibleWindows() do
-  begin
-    // The PID doesn't change after RemoteInput pairs
-    if (targetPID > 0) and (targetPID <> Root.GetPID()) then continue;
-
-    // Only works for vanilla client with this filter
-    if (Root.GetTitle() = 'Old School RuneScape') then
-    begin
-      {$IFDEF WINDOWS}
-      for Child in Root.GetChildren() do
-        if (Child.GetClassName() = 'SunAwtCanvas') then
-        begin
-          if Child = GetSimbaTargetWindow() then exit(child);
-
-          // get size of this child window
-          windowBox := Child.GetBounds();
-
-          // The main RS window is the narrowest
-          windowWidth := windowBox.X2 - windowBox.X1;
-
-          if (windowWidth < curWidth) or (curWidth = 0) then
-          begin
-            curWidth := windowWidth;
-            result := Child;
-          end;
-        end;
-      {$ELSE}
-      begin
-        // Handle linux later
-        exit();
-      end;
-      {$ENDIF}
-    end;
-  end;
-end;
-
-procedure Recorder.Start(seconds: Integer; directory: String; userBox, expBox: TBox = []); static; override;
-begin
-  Recorder.Start(FindRSWindow(getSimbaTargetPID()), seconds, directory, userBox, expBox);
-end;
-
-procedure tScript.SetupRecorder();
-var
-  userB, expB: TBox;
-begin
-  userB := Chat.GetDisplayNameBox();
-  if userB = Chat.GetLineBoxes()[CHAT_INPUT_LINE] then
-    userB := [];
-
-  XPBar._Setup();
-  if XPBar.isSetup then
-    expB := XPBar.Bounds()
-  else
-  begin
-    print('Could not find XPBar, guessing location for video blocking', eDebugType.DEV);
-    expB := [MainScreen.Bounds().Middle.X, 0, MainScreen.Bounds().X2, 25];
-  end;
-
-  Recorder.Start(30, {$MACRO CURRENT_DIRECTORY} + 'Video', userB, expB);
-end;
-
 function FormatInt(int : Int32) : String;
-var
-  i : Int32;
 begin
-  if int < 1000 then exit(toStr(int));
+  if abs(int) < 1000 then exit(toStr(int));
 
-  if floor(int/1000) < 1000 then
+  if floor(abs(int)/1000) < 1000 then
   begin
     result := toStr(int);
     insert(',', result, (length(result)-2));
     exit();
   end;
 
-  if floor(int/1000000) < 1000 then
+  if floor(abs(int)/1000000) < 1000 then
   begin
     result := toStr(int);
     insert(',', result, (length(result)-5));
@@ -343,7 +271,7 @@ begin
     exit();
   end;
 
-  if floor(int/1000000000) < 1000 then
+  if floor(abs(int)/1000000000) < 1000 then
   begin
     result := toStr(int);
     insert(',', result, (length(result)-8));

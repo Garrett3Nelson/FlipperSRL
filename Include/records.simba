@@ -190,8 +190,6 @@ type
       NONE, LIGHT, DEV, FATAL, SAVE
     );
 
-  ERSGEOfferStatus = (ACTIVE, COMPLETE, ABORTED, EMPTY, UNKNOWN);
-
   tScript = record
 
     version : String;
